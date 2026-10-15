@@ -407,6 +407,43 @@ def proxy_takeaway():
             f"under {theme.DEFENSE_LABEL[S.key]} its rank correlation with the attack score is {rho_r:+.2f}.")
 
 
+# ---------------------------------------------------------------------------------- 5. Stability strip
+def jitter(df):
+    # ponytail: seeded vertical jitter, not a packed beeswarm; swap in a packing pass if overlap hides structure
+    return df.assign(yj=df.k + (np.random.default_rng(0).random(len(df)) - 0.5) * 0.7)
+
+
+def stability_frame():
+    df = S.frame().query("member and k > 0")
+    return jitter(df) if len(df) else df.assign(yj=[])
+
+
+def stability():
+    def draw(**_):
+        df = stability_frame()
+        if not len(df):
+            return hv.Points([], ["st", "yj"])
+        return hv.Points(df, ["st", "yj"], ["k", "record_id", "flag_rate", "score_rmia"]).opts(
+            color="flag_rate", cmap=theme.SEQ, clim=(0, 1), size=5, tools=["hover", "box_select", "tap"],
+            active_tools=["box_select"])
+    dm = hv.DynamicMap(draw, streams=[hv.streams.Params(S, CTRL)])
+    attach(dm, select_box(True, "st", "yj", frame_fn=stability_frame))
+    hl = hv.DynamicMap(lambda **_: hv.Points(stability_frame()[lambda d: d.record_id.isin(S.selected)], ["st", "yj"]).opts(
+        size=11, fill_alpha=0, line_color=theme.INK, line_width=2), streams=[hv.streams.Params(S, CTRL + ["selected"])])
+    return (dm * hl).opts(yticks=[(1, "1 of 3 seeds"), (2, "2 of 3"), (3, "all 3 seeds")], ylim=(0.4, 3.6),
+                          xlabel=SCORE_LABEL + ", mean over seeds", xticks=SCORE_TICKS, xlim=(-0.1, 4.1), ylabel="", height=300, responsive=True,
+                          hooks=HOOKS, title="Training records flagged at least once")
+
+
+def stability_takeaway():
+    df = S.frame().query("member")
+    n = df.k.value_counts()
+    n1, n3, n0 = int(n.get(1, 0)), int(n.get(3, 0)), int(n.get(0, 0))
+    ever = max(1, int((df.k > 0).sum()))
+    return (f"<em>{n3:,}</em> records are flagged in every seed and {n1:,} in only one: {100 * n3 / ever:.0f}% of "
+            f"flagged records are reproducibly at risk ({n0:,} are never flagged).")
+
+
 # ------------------------------------------------------------------------------------------------ layout
 def controls():
     w = pn.Param(S, parameters=CTRL + ["attribute"], show_name=False, default_layout=pn.Row,
@@ -453,6 +490,10 @@ def build():
                 "OLS fit; ring = current configuration.",
                 pn.Row(pn.pane.HoloViews(proxy_density()),
                        pn.pane.HoloViews(hv.DynamicMap(model_level, streams=[hv.streams.Params(S, CTRL)])))),
+        section(5, "Stability strip", stability_takeaway,
+                "Training records flagged in at least one seed, one row per number of seeds that flag them. "
+                "Flags that appear in only one seed are what a single run would wrongly call a finding.",
+                pn.pane.HoloViews(stability())),
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
         styles={"max-width": "1280px", "margin": "0 auto", "padding": "24px 28px"})
