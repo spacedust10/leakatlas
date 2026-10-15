@@ -8,8 +8,6 @@ per-record attack scores, losses and gradient norms in DuckDB, tests whether two
 which records (and which demographic subgroups) are exposed, and presents it all in a linked, explorable
 dashboard where changing the seed, defense, ε or FPR shows whether "this record is at risk" survives.
 
-CIS 545 Data Security & Privacy, University of Michigan-Dearborn.
-
 ![Record Atlas](results/figures/viewer_01_record_atlas.png)
 
 Results with confidence intervals: **[results/summary.md](results/summary.md)** (generated from the stored data,
