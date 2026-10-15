@@ -79,7 +79,20 @@ def load_adult() -> Dataset:
     return Dataset("adult", x, y, groups, 2, hashlib.sha256(raw).hexdigest())
 
 
-LOADERS = {"adult": load_adult}
+def load_fmnist() -> Dataset:
+    root = DATA_DIR / "raw"
+    parts = [FashionMNIST(root, train=t, download=True) for t in (True, False)]
+    imgs = torch.cat([p.data for p in parts]).unsqueeze(1).float() / 255.0
+    x = (imgs - FMNIST_MEAN) / FMNIST_STD
+    y = torch.cat([p.targets for p in parts]).long()
+    classes = parts[0].classes
+    groups = pl.DataFrame({"class_name": [classes[i] for i in y.tolist()]}).with_row_index("record_id")
+    sha = hashlib.sha256(b"".join((root / "FashionMNIST" / "raw" / f).read_bytes() for f in sorted(
+        p.name for p in (root / "FashionMNIST" / "raw").glob("*.gz")))).hexdigest()
+    return Dataset("fmnist", x, y, groups, 10, sha)
+
+
+LOADERS = {"adult": load_adult, "fmnist": load_fmnist}
 
 
 if __name__ == "__main__":
