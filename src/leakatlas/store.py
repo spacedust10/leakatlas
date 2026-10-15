@@ -96,6 +96,14 @@ def replace_cell(con, run_ids: list[str], runs: list[RunRow], attacks: list[Atta
     con.execute("COMMIT")
 
 
+def replace_table(con, name: str, df: pl.DataFrame) -> None:
+    """Store a derived analysis table (e.g. proxy evaluation) so reports query it instead of re-deriving."""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "rows.parquet"
+        df.write_parquet(path)
+        con.execute(f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM read_parquet(?)", [str(path)])
+
+
 def replace_records(con, dataset: str, df: pl.DataFrame) -> None:
     con.execute("DELETE FROM records WHERE dataset = ?", [dataset])
     _insert(con, "records", df)
