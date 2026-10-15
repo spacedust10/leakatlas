@@ -209,6 +209,61 @@ def member_rows(df, member: bool):
     return df[df.member == member]
 
 
+# --------------------------------------------------------------------------------- 1. Record Atlas (hero)
+def atlas_panel(member: bool):
+    params = hv.streams.Params(S, CTRL)
+    base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), member), ["gn10", "st"]),
+                         streams=[params])
+    density = rasterize(base, aggregator=ds.count(), width=420, height=300).opts(
+        cmap=["#ececee", "#c9c9cf", "#9a9aa3", "#55555e"], cnorm="eq_hist", colorbar=False, alpha=0.9,
+        tools=["box_select", "tap"], active_tools=["box_select"], hooks=HOOKS, height=360, responsive=True,
+        xlabel="Proxy A: gradient norm at final epoch (log10)", ylabel=SCORE_LABEL, yticks=SCORE_TICKS,
+        title=("Training records (members)" if member else "Held-out records (non-members)"), ylim=(-0.1, 4.1))
+    attach(density, select_box(member))
+
+    def flagged(**_):
+        df = member_rows(S.frame(), member)
+        df = df[df.k > 0]
+        pts = hv.Points(df, ["gn10", "st"], ["flag_rate", "k", "record_id", "score_rmia"]).opts(
+            color="flag_rate", cmap=theme.SEQ, clim=(0, 1), size=7, line_color=theme.INK if member else None,
+            line_width=1.2 if member else 0, colorbar=member, clabel="share of seeds flagged",
+            tools=["hover"], hooks=HOOKS)
+        thr = thresholds(S.dataset, S.size, S.key)
+        y = float(tail(thr[np.isclose(thr.fpr, S.fpr)].threshold.median()))
+        x0 = float(member_rows(S.frame(), member).gn10.min())
+        line = hv.HLine(y).opts(color=theme.ACCENT, line_width=1.5)
+        lab = hv.Text(x0, y, f" {fmt_fpr(S.fpr)} FPR threshold (median over seeds, set on reference models)",
+                      halign="left", valign="bottom").opts(text_color=theme.ACCENT, text_font_size="11px")
+        out = pts * line * lab
+        if member and len(df):
+            # call-outs stacked in the empty lower-left, leader lines to each record (no label collisions)
+            top = df.sort_values(["k", "st"], ascending=False).head(5).assign(rank=range(1, 6)[:min(5, len(df))])
+            top = top.sort_values("gn10")
+            ly = np.linspace(y - 0.6, y - 2.2, len(top))
+            span = float(member_rows(S.frame(), member).gn10.max()) - x0
+            lx = x0 + 0.03 * span
+            out = out * hv.Segments([(lx + 0.33 * span, yy, gx, gy) for yy, gx, gy in zip(ly, top.gn10, top.st)]).opts(
+                color=theme.ACCENT, line_width=0.8, alpha=0.7)
+            out = out * hv.Points(top, ["gn10", "st"]).opts(size=15, fill_alpha=0, line_color=theme.ACCENT, line_width=2)
+            out = out * hv.Labels({"x": [lx] * len(top), "y": ly,
+                                   "text": [f"#{n}  record {r} · {int(k)}/3 seeds" for n, r, k in
+                                            zip(top["rank"], top.record_id, top.k)]},
+                                  ["x", "y"], "text").opts(text_color=theme.ACCENT, text_font_size="10px", text_align="left")
+        return out
+    return density * hv.DynamicMap(flagged, streams=[hv.streams.Params(S, CTRL)]) * highlight("gn10", "st", member)
+
+
+def atlas_takeaway():
+    df = S.frame().query("member")
+    n3, n = int((df.k == 3).sum()), len(df)
+    rho = stats.spearmanr(df.gn10, df.score_rmia).statistic
+    if abs(rho) < 0.1:
+        where = f"the gradient norm barely orders exposure (Spearman ρ = {rho:+.2f})"
+    else:
+        where = f"exposure concentrates at {'large' if rho > 0 else 'small'} gradient norms (Spearman ρ = {rho:+.2f})"
+    return (f"<em>{n3:,}</em> of {n:,} training records are flagged in all three seeds at {fmt_fpr(S.fpr)} FPR; {where}.")
+
+
 # ------------------------------------------------------------------------------------------------ layout
 def controls():
     w = pn.Param(S, parameters=CTRL + ["attribute"], show_name=False, default_layout=pn.Row,
@@ -235,6 +290,11 @@ def masthead():
 def build():
     return pn.Column(
         masthead(), controls(),
+        section(1, "Record Atlas", atlas_takeaway,
+                "Each training record is a point: x = gradient norm at the final epoch (Proxy A), y = RMIA score. "
+                "Grey = density of all records; coloured = records flagged in ≥1 seed (colour = share of seeds), "
+                "ink ring = training member; orange = the threshold and the five most exposed records.",
+                pn.Row(pn.pane.HoloViews(atlas_panel(True)), pn.pane.HoloViews(atlas_panel(False)))),
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
         styles={"max-width": "1280px", "margin": "0 auto", "padding": "24px 28px"})
