@@ -10,7 +10,7 @@ lr: 0.05
 defenses:
   baseline: {epochs: 60}                                                     # SGD, no regularisation: overfits on purpose
   aof: {epochs: 40, weight_decay: 5.0e-4, label_smoothing: 0.1, patience: 10}
-  dp_eps1: {epochs: 30, epsilon: 1.0, max_grad_norm: 1.0, lr: 0.5}           # delta = 1/S
-  dp_eps4: {epochs: 30, epsilon: 4.0, max_grad_norm: 1.0, lr: 0.5}
-  dp_eps8: {epochs: 30, epsilon: 8.0, max_grad_norm: 1.0, lr: 0.5}
+  dp_eps1: {epochs: 30, epsilon: 1.0, max_grad_norm: 1.0, lr: 0.02}          # delta = 1/S; lr picked on defender val set
+  dp_eps4: {epochs: 30, epsilon: 4.0, max_grad_norm: 1.0, lr: 0.02}
+  dp_eps8: {epochs: 30, epsilon: 8.0, max_grad_norm: 1.0, lr: 0.02}
   miashield: {epochs: 60, k: 5}                                              # 5 disjoint sub-models + exact-signature exclusion
