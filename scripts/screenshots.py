@@ -60,11 +60,10 @@ def main():
             for tag, query in states.items():
                 page.goto(f"http://localhost:{PORT}/viewer?{query}", wait_until="networkidle", timeout=180_000)
                 page.wait_for_timeout(12_000)  # let Bokeh + datashader finish drawing
-                views = page.locator(".la-view")
                 for i, name in enumerate(NAMES):
                     if name not in WANT[tag]:
                         continue
-                    v = views.nth(i)
+                    v = page.locator(f".la-anchor-{i + 1}").first  # nth(.la-view) is unordered across shadow roots
                     v.scroll_into_view_if_needed()
                     page.wait_for_timeout(1500)
                     path = OUT / f"viewer_{i + 1:02d}_{name}{'_adult' if tag == 'adult' else ''}.png"
