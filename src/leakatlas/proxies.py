@@ -47,3 +47,42 @@ def create_view(con) -> None:
 
 def members(con) -> pl.DataFrame:
     return query(con, "SELECT * FROM record_view WHERE member")
+
+
+def _top_q(x: np.ndarray, q: float) -> np.ndarray:
+    return x >= np.quantile(x, 1 - q)
+
+
+def tune(dev: pl.DataFrame, proxy: str) -> dict:
+    """Pick sign (+1: high proxy = exposed) and q maximizing F1 against flags. Seed 0, dev records only."""
+    y = dev["flag"].to_numpy()
+    if y.sum() == 0:
+        return {"sign": None, "q": None, "dev_f1": None}
+    best = max(((f1(_top_q(s * dev[proxy].to_numpy(), q), y), -q, s) for s in (1, -1) for q in Q_GRID))
+    return {"sign": best[2], "q": -best[1], "dev_f1": best[0]}
+
+
+def f1(pred, y):
+    tp = (pred & y).sum()
+    return 0.0 if tp == 0 else 2 * tp / (pred.sum() + y.sum())
+
+
+def evaluate(df: pl.DataFrame) -> pl.DataFrame:
+    rows = []
+    for key, cell in df.group_by(CELL, maintain_order=True):
+        for proxy in PROXIES:
+            t = tune(cell.filter((pl.col("seed") == 0) & pl.col("dev")), proxy)
+            for seed in (1, 2):
+                test = cell.filter((pl.col("seed") == seed) & ~pl.col("dev"))
+                y, s = test["flag"].to_numpy(), test[proxy].to_numpy()
+                row = dict(zip(CELL, key)) | {"proxy": proxy, "seed": seed, "n": len(y), "base_rate": y.mean()} | t
+                rho = stats.spearmanr(s, test["score_rmia"].to_numpy()).statistic
+                if t["sign"] is None or y.sum() == 0:
+                    rows.append(row | {"spearman": rho, "precision": None, "recall": None, "lift": None})
+                    continue
+                pred = _top_q(t["sign"] * s, t["q"])
+                prec = (pred & y).sum() / pred.sum()
+                rows.append(row | {
+                    "spearman": stats.spearmanr(s, test["score_rmia"].to_numpy()).statistic,  # raw, unoriented
+                    "precision": prec, "recall": (pred & y).sum() / y.sum(), "lift": prec / y.mean()})
+    return pl.DataFrame(rows, infer_schema_length=None)
