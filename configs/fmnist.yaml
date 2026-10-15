@@ -1,0 +1,16 @@
+# Fashion-MNIST — CNN on MPS. Sizes = target training-set sizes S (members); non-members = S more records.
+dataset: fmnist
+device: mps
+sizes: [5000, 15000]
+target_seeds: [0, 1, 2]
+num_references: 8           # Checkpoint 1 plan; refs train in complementary pairs on the shadow pool
+defender_val: 2000          # carved from the population pool, used only by early stopping
+batch_size: 128
+lr: 0.05
+defenses:
+  baseline: {epochs: 60}                                                     # SGD, no regularisation: overfits on purpose
+  aof: {epochs: 40, weight_decay: 5.0e-4, label_smoothing: 0.1, patience: 10}
+  dp_eps1: {epochs: 30, epsilon: 1.0, max_grad_norm: 1.0, lr: 0.5}           # delta = 1/S
+  dp_eps4: {epochs: 30, epsilon: 4.0, max_grad_norm: 1.0, lr: 0.5}
+  dp_eps8: {epochs: 30, epsilon: 8.0, max_grad_norm: 1.0, lr: 0.5}
+  miashield: {epochs: 60, k: 5}                                              # 5 disjoint sub-models + exact-signature exclusion
