@@ -183,13 +183,15 @@ def audit_cell(cfg, d, size, defense, con):
     return attacks
 
 
-def audit_all(cfg):
+def audit_all(cfg, only: str | None = None):
     d = LOADERS[cfg.dataset]()
     con = connect()
     groups = d.groups.with_columns(pl.lit(cfg.dataset).alias("dataset"), pl.col("record_id").cast(pl.Int64))
     replace_records(con, cfg.dataset, groups)
     for size in cfg.sizes:
         for defense in cfg.defenses:
+            if only and defense != only:
+                continue
             for a in audit_cell(cfg, d, size, defense, con):
                 print(f"{a.run_id:32s} {a.attack:4s} AUC {a.auc:.3f}  TPR@0.1% {a.tpr_at_0p1:.4f}  "
                       f"TPR@1% {a.tpr_at_1:.4f}  shadow-thr TPR/FPR@1% {a.shadow_tpr_at_1:.4f}/{a.shadow_fpr_at_1:.4f}",
@@ -198,4 +200,4 @@ def audit_all(cfg):
 
 
 if __name__ == "__main__":
-    audit_all(load_config(sys.argv[1]))
+    audit_all(load_config(sys.argv[1]), sys.argv[2] if len(sys.argv) > 2 else None)
