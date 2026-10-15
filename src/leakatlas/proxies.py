@@ -117,12 +117,12 @@ def subgroups(df: pl.DataFrame, n_boot: int = 2000) -> pl.DataFrame:
     adult = df.filter(pl.col("dataset") == "adult")
     per_rec = adult.group_by(CELL + ["record_id"] + SUBGROUPS).agg(
         pl.col("flag").mean().alias("rate"), pl.col("score_rmia").median().alias("score")
-    )
+    ).sort(CELL + ["record_id"])  # fixed order => fixed bootstrap RNG stream => reproducible CIs
     rng = np.random.default_rng(0)
     rows = []
     for key, cell in per_rec.group_by(CELL, maintain_order=True):
         for attr in SUBGROUPS:
-            groups = {g: c["rate"].to_numpy() for (g,), c in cell.group_by(attr)}
+            groups = {g: c["rate"].to_numpy() for (g,), c in sorted(cell.group_by(attr), key=lambda t: t[0])}
             groups = {g: v for g, v in groups.items() if len(v) >= 20}
             means = {g: v.mean() for g, v in groups.items()}
             gap = stats.bootstrap(tuple(groups.values()), lambda *gs, axis=-1: np.ptp([g.mean(axis) for g in gs], axis=0),
