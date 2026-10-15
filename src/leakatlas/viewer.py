@@ -509,6 +509,66 @@ def inspector_takeaway():
             + (f"it stays flagged under <em>{', '.join(kept)}</em>." if kept else "no defense leaves it flagged."))
 
 
+# ---------------------------------------------------------------------------------- 7. Defense trade-off
+T95 = stats.t.ppf(0.975, 2)  # 3 seeds -> 2 dof
+
+
+def tradeoff_frame():
+    r = runs(S.dataset)
+    r = r[r.train_size == S.size]
+    rows = []
+    for d in DEFENSES:
+        g = r[r.defense == d]
+        t = tpr_at(S.dataset, S.size, d, S.fpr)
+        acc = g.test_acc.to_numpy()
+        cost = g.train_sec.mean() + g.ref_train_sec.iloc[0]
+        rows.append(dict(defense=d, label=theme.DEFENSE_LABEL[d], tpr=t.mean(), tpr_ci=T95 * t.std(ddof=1) / np.sqrt(len(t)),
+                         acc=acc.mean(), acc_ci=T95 * acc.std(ddof=1) / np.sqrt(len(acc)), cost=cost))
+    df = pd.DataFrame(rows)
+    df["pareto"] = [not ((df.acc >= a) & (df.tpr <= t) & ((df.acc > a) | (df.tpr < t))).any() for a, t in zip(df.acc, df.tpr)]
+    return df
+
+
+def tradeoff(**_):
+    df = tradeoff_frame()
+    df["size_px"] = 8 + 22 * np.sqrt(df.cost / df.cost.max())   # marker AREA ∝ cost
+    front = df[df.pareto].sort_values("tpr")
+    eb_y = hv.ErrorBars(df, "tpr", ["acc", "acc_ci"]).opts(color=theme.INK_2)
+    eb_x = hv.ErrorBars([(t, a, e) for t, a, e in zip(df.tpr, df.acc, df.tpr_ci)], horizontal=True).opts(color=theme.INK_2)
+    pts = hv.Points(df, ["tpr", "acc"], ["label", "cost", "size_px"]).opts(
+        size="size_px", color=theme.MUTED, line_color=theme.INK, line_width=1, tools=["hover"])
+    cur = hv.Points(df[df.defense == S.key], ["tpr", "acc"]).opts(size=30, fill_alpha=0, line_color=theme.INK, line_width=2)
+    frontier = hv.Curve(front, "tpr", "acc").opts(color=theme.INK_2, line_width=1.2)
+    xr = max(df.tpr.max() + df.tpr_ci.max(), S.fpr) - min(df.tpr.min() - df.tpr_ci.max(), S.fpr)
+    yr = (df.acc.max() - df.acc.min()) or 0.01
+    order = df.sort_values("acc", ascending=False).reset_index(drop=True)
+    ly = list(order.acc)
+    for i in range(1, len(ly)):  # dodge: keep stacked labels at least 6% of the y-range apart
+        if abs(ly[i - 1] - ly[i]) < 0.06 * yr and abs(order.tpr[i - 1] - order.tpr[i]) < 0.15 * xr:
+            ly[i] = ly[i - 1] - 0.06 * yr
+    labels = hv.Labels({"x": order.tpr + 0.045 * xr, "y": ly, "t": list(order.label)}, ["x", "y"], "t").opts(
+        text_align="left", text_font_size="11px", text_color=theme.INK)
+    chance = hv.VLine(S.fpr).opts(color=theme.ACCENT, line_width=1, alpha=0.7)
+    ctext = hv.Text(S.fpr, df.acc.min() - df.acc_ci.max(), f" chance = {fmt_fpr(S.fpr)}", halign="left",
+                    valign="bottom").opts(text_color=theme.ACCENT, text_font_size="10px")
+    return (eb_y * eb_x * frontier * pts * cur * labels * chance * ctext).opts(
+        xlabel=f"Privacy risk: RMIA TPR @ {fmt_fpr(S.fpr)} FPR (mean, 95% CI over 3 seeds)",
+        ylabel="Utility: test accuracy (mean, 95% CI)", height=420, responsive=True, hooks=HOOKS,
+        title="Marker area ∝ training cost (target + reference models); thin line = Pareto front")
+
+
+def tradeoff_takeaway():
+    df = tradeoff_frame()
+    base = df[df.defense == "baseline"].iloc[0]
+    best = df[df.pareto & (df.defense != "baseline")].sort_values("acc", ascending=False)
+    if not len(best):
+        return "No defense improves on the undefended model's trade-off here."
+    b = best.iloc[0]
+    return (f"<em>{b.label}</em> is the most accurate defense on the Pareto front: {100 * b.acc:.1f}% accuracy "
+            f"(vs {100 * base.acc:.1f}% undefended) with TPR {100 * b.tpr:.1f}% at {fmt_fpr(S.fpr)} FPR "
+            f"(vs {100 * base.tpr:.1f}%).")
+
+
 # ------------------------------------------------------------------------------------------------ layout
 def controls():
     w = pn.Param(S, parameters=CTRL + ["attribute"], show_name=False, default_layout=pn.Row,
@@ -563,6 +623,9 @@ def build():
                 "The selected record, its nearest training neighbours (Fashion-MNIST) or feature row (Adult), and "
                 "its attack score under every defense.",
                 pn.panel(pn.bind(inspector, *[S.param[c] for c in CTRL + ["selected"]]))),
+        section(7, "Defense trade-off", tradeoff_takeaway,
+                "One point per defense at the current dataset and size. ε is written next to each DP-SGD point.",
+                pn.pane.HoloViews(hv.DynamicMap(tradeoff, streams=[hv.streams.Params(S, CTRL)]))),
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
         styles={"max-width": "1280px", "margin": "0 auto", "padding": "24px 28px"})
