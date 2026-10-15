@@ -1,0 +1,25 @@
+[project]
+name = "leakatlas"
+version = "0.1.0"
+description = "Record-level membership-inference risk atlas with attack-free proxies (Adult, Fashion-MNIST)"
+readme = "README.md"
+authors = [
+    { name = "spacedust10", email = "vinitgunaki10@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb>=1.5.6",
+    "numpy>=2.5.4",
+    "opacus>=1.6.0",
+    "polars>=2.0.0",
+    "pydantic>=2.14.1",
+    "pyyaml>=6.0.3",
+    "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
+    "torch>=2.14.1",
+    "torchvision>=0.29.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.21,<0.12.0"]
+build-backend = "uv_build"
