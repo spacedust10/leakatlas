@@ -104,3 +104,22 @@ scripts/            timing benchmark, screenshot capture
 tests/              gradient-norm check
 third_party/ml_privacy_meter   pinned submodule (e384af8)
 ```
+
+## Deviations from the original plan (all documented in the notes)
+
+- **RMIA instead of LiRA**: ML Privacy Meter implements only RMIA and LOSS; RMIA is its reference-model attack and works with few references.
+- **Privacy Meter fixes**: its LOSS pipeline is sign-inverted when fed probabilities (we feed log-loss) and its `offline_a` tuner calibrates on the model trained on the target's complement (we tune on reference models only).
+- **MIAShield**: the brief's `um-dsp/MIAShield` repository does not exist; the authors' code (`ijarin/MIAShield-Code`, TensorFlow notebook) was re-implemented in PyTorch with the exact-signature oracle only.
+- **Numerics**: per-record loss and gradient norm are computed in log space; float32 (and even float64) underflow had tied thousands of records at exactly zero.
+
+## References
+
+- Tobaben et al., arXiv:2402.06674 — per-sample gradient norms at the end of training correlate with membership-inference vulnerability.
+- N. Jebreel, M. Khalil, D. Sánchez, J. Domingo-Ferrer, "Revisiting the LiRA Membership Inference Attack Under Realistic Assumptions", PoPETs 2026, arXiv:2603.07567. Code: github.com/najeebjebreel/lira_analysis.
+- N. Carlini, S. Chien, M. Nasr, S. Song, A. Terzis, F. Tramèr, "Membership Inference Attacks From First Principles", IEEE S&P 2022 (LiRA; TPR at low FPR on log-scale ROC curves).
+- I. Jarin, B. Eshete, "MIAShield: Defending Membership Inference Attacks via Preemptive Exclusion of Members", PoPETs 2023, arXiv:2203.00915.
+- S. Zarifzadeh, P. Liu, P. Bhatt, R. Shokri, "Low-Cost High-Power Membership Inference Attacks", ICML 2024 (RMIA).
+- ML Privacy Meter, privacytrustlab, github.com/privacytrustlab/ml_privacy_meter (MIT).
+- Opacus, github.com/pytorch/opacus (DP-SGD with the RDP accountant).
+- B. Becker, R. Kohavi, "Adult", UCI Machine Learning Repository, 1996 (CC BY 4.0). H. Xiao, K. Rasul, R. Vollgraf, "Fashion-MNIST", arXiv:1708.07747, 2017 (MIT).
+- Design: C. Wilke, *Fundamentals of Data Visualization*; R. Alexander, *Telling Stories with Data*; Distill, "How to Use t-SNE Effectively" (2016).
