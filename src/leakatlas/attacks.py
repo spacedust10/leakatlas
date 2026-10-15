@@ -40,6 +40,26 @@ def signals(model, x, y, dev):
     return np.exp(-loss), loss, (lp.argmax(1) == y).numpy()
 
 
+def threshold_at(scores, member, fpr):
+    """Largest threshold with FPR <= fpr (same rule as lira_analysis compute_tpr_at_fpr)."""
+    f, _, t = roc_curve(member, scores)
+    return t[np.where(f <= fpr)[0][-1]]
+
+
+def shadow_thresholds(pseudo_scores, keep):
+    """Median over reference models (each attacked as pseudo-target) of its own FPR threshold."""
+    return {f: float(np.median([threshold_at(pseudo_scores[r], keep[r], f) for r in range(len(keep))]))
+            for f in FPR_GRID}
+
+
 def chunked_rmia(target_idx, sig, pop, mem, k, a):
     return np.concatenate([pm.run_rmia(target_idx, sig[i:i + CHUNK], pop, mem[i:i + CHUNK], k, a)
                            for i in range(0, len(sig), CHUNK)])
+
+
+def eval_attack(run_id, name, scores, member, thr):
+    f, t, _ = roc_curve(member, scores)
+    flag = scores >= thr[0.01]
+    return AttackRow(run_id=run_id, attack=name, auc=roc_auc_score(member, scores),
+                     tpr_at_0p1=t[np.where(f <= 0.001)[0][-1]], tpr_at_1=t[np.where(f <= 0.01)[0][-1]],
+                     shadow_tpr_at_1=flag[member].mean(), shadow_fpr_at_1=flag[~member].mean())
