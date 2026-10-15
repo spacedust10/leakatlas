@@ -35,9 +35,32 @@ CHUNK = 2048  # rows per run_rmia call; its [rows x population] ratio matrix is 
 
 
 def signals(model, x, y, dev):
-    lp = log_probs(model, x, dev)
-    loss = F.nll_loss(lp, y, reduction="none").numpy()
-    return np.exp(-loss), loss, (lp.argmax(1) == y).numpy()
+    """True-class prob, loss and correctness, computed in float64 from logits.
+
+    float32 log_softmax saturates to loss == 0 for confident predictions, which ties members with
+    non-members at the top of the score range and zeroes TPR at low FPR. Here
+    loss_k = softplus(logsumexp_{j!=y} z_j - z_y) per (sub-)model, and MIAShield's served loss is
+    -log(mean of kept p_k), done as a log-mean-exp.
+    """
+    shield = isinstance(model, MIAShield)
+    subs = list(model.subs) if shield else [model]
+    excl = model.oracle(x) if shield else torch.full((len(x),), -1)
+    loss, correct = [], []
+    model.eval()
+    with torch.no_grad():
+        for i in range(0, len(x), 4096):
+            xb, eb = x[i:i + 4096].to(dev), excl[i:i + 4096]
+            z = torch.stack([m(xb) for m in subs], 1).cpu().double()                # [B, K, C]
+            idx = y[i:i + 4096][:, None, None].expand(-1, len(subs), 1)
+            zy = z.gather(2, idx).squeeze(2)
+            margin = torch.logsumexp(z.scatter(2, idx, float("-inf")), 2) - zy      # [B, K]
+            keep = torch.arange(len(subs))[None] != eb[:, None]
+            logp = torch.logsumexp(torch.where(keep, -F.softplus(margin), float("-inf")), 1) - keep.sum(1).log()
+            probs = (F.softmax(z, 2) * keep[..., None]).sum(1)
+            loss.append(-logp)
+            correct.append(probs.argmax(1) == y[i:i + 4096])
+    loss = torch.cat(loss).numpy()
+    return np.exp(-loss), loss, torch.cat(correct).numpy()
 
 
 def grad_norms(model, x, y, dev, bs=512):
