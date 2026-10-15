@@ -24,3 +24,6 @@ runs/
 third_party/lira_analysis/
 third_party/MIAShield/
 .DS_Store
+
+# Local tool config
+.serena/
