@@ -363,6 +363,50 @@ def ridge_takeaway():
             f"{rates.index[0]} members ({100 * hi.rate:.2f}% vs {100 * lo.rate:.2f}%).")
 
 
+# ---------------------------------------------------------------------------------- 4. Proxy vs truth
+def proxy_density():
+    params = hv.streams.Params(S, CTRL)
+    base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), True), ["lr10", "st"]), streams=[params])
+    dens = rasterize(base, aggregator=ds.count(), width=360, height=280).opts(
+        cmap=list(theme.SEQ), cnorm="log", colorbar=True, clabel="records per pixel (log)", tools=["box_select", "tap"],
+        active_tools=["box_select"], responsive=True, height=340, hooks=HOOKS, ylim=(-0.1, 4.1), yticks=SCORE_TICKS,
+        xlabel="Proxy B: record loss / median held-out loss (log10)", ylabel=SCORE_LABEL,
+        title="Per record (training records)")
+    attach(dens, select_box(True, "lr10"))
+    return dens * highlight("lr10", "st", True)
+
+
+def model_level(**_):
+    r = pd.concat([runs(d) for d in ("adult", "fmnist")])
+    g = r.groupby(["dataset", "train_size", "defense"]).agg(lr=("loss_ratio", "mean"), tpr=("tpr_at_1", "mean")).reset_index()
+    g["mlr10"] = np.log10(g.lr)
+    rho = stats.spearmanr(g.mlr10, g.tpr).statistic
+    slope, icpt = np.polyfit(g.mlr10, g.tpr, 1)
+    xs = np.linspace(g.mlr10.min(), g.mlr10.max(), 50)
+    cur = g[(g.dataset == S.dataset) & (g.train_size == S.size) & (g.defense == S.key)]
+    pts = hv.Points(g, ["mlr10", "tpr"], ["dataset", "train_size", "defense"]).opts(
+        color=theme.INK_2, size=8, tools=["hover"], marker="circle")
+    fit = hv.Curve((xs, slope * xs + icpt)).opts(color=theme.INK, line_width=1.5)
+    ring = hv.Points(cur, ["mlr10", "tpr"]).opts(size=16, fill_alpha=0, line_color=theme.INK, line_width=2)
+    lab = hv.Text(g.mlr10.min(), g.tpr.max(), f"Spearman ρ = {rho:.2f}  (n = {len(g)} configurations)",
+                  halign="left", valign="top").opts(text_font_size="12px", text_color=theme.INK)
+    names = hv.Labels({"x": cur.mlr10, "y": cur.tpr, "t": ["  current"] * len(cur)}, ["x", "y"], "t").opts(
+        text_align="left", text_font_size="10px")
+    return (pts * fit * ring * lab * names).opts(
+        xlabel="Model-level loss ratio, test / train (log10)", ylabel="RMIA TPR @ 1% FPR (mean of 3 seeds)",
+        title="Per configuration (both datasets)", height=340, responsive=True, hooks=HOOKS)
+
+
+def proxy_takeaway():
+    r = pd.concat([runs(d) for d in ("adult", "fmnist")])
+    g = r.groupby(["dataset", "train_size", "defense"]).agg(lr=("loss_ratio", "mean"), tpr=("tpr_at_1", "mean"))
+    rho_m = stats.spearmanr(g.lr, g.tpr).statistic
+    df = S.frame().query("member")
+    rho_r = stats.spearmanr(df.lr10, df.score_rmia).statistic
+    return (f"Across configurations the loss ratio tracks attack success (ρ = <em>{rho_m:.2f}</em>); per record, "
+            f"under {theme.DEFENSE_LABEL[S.key]} its rank correlation with the attack score is {rho_r:+.2f}.")
+
+
 # ------------------------------------------------------------------------------------------------ layout
 def controls():
     w = pn.Param(S, parameters=CTRL + ["attribute"], show_name=False, default_layout=pn.Row,
@@ -403,6 +447,12 @@ def build():
                 "right column = flag rate with 95% percentile-bootstrap CI over records (seeds averaged per record). "
                 "Groups under 20 members are omitted. Ink ticks = selected records.",
                 pn.panel(pn.bind(ridgelines, *[S.param[c] for c in CTRL + ["attribute", "selected"]]))),
+        section(4, "Proxy vs truth", proxy_takeaway,
+                "Left: per-record loss ratio (Proxy B) against the attack score; box-select to pick records. "
+                "Right: one point per configuration, model-level test/train loss ratio against attack TPR, with an "
+                "OLS fit; ring = current configuration.",
+                pn.Row(pn.pane.HoloViews(proxy_density()),
+                       pn.pane.HoloViews(hv.DynamicMap(model_level, streams=[hv.streams.Params(S, CTRL)])))),
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
         styles={"max-width": "1280px", "margin": "0 auto", "padding": "24px 28px"})
