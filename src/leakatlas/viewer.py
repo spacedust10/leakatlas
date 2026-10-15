@@ -264,6 +264,41 @@ def atlas_takeaway():
     return (f"<em>{n3:,}</em> of {n:,} training records are flagged in all three seeds at {fmt_fpr(S.fpr)} FPR; {where}.")
 
 
+# ------------------------------------------------------------------------------------------ 2. Log-log ROC
+def roc_panels(**_):
+    plots = []
+    for d in DEFENSES:
+        curves, aucs = roc(S.dataset, S.size, d)
+        lo, med, hi = (np.clip(a, 1e-4, 1) for a in (curves.min(0), np.median(curves, 0), curves.max(0)))
+        cur = d == S.key
+        ink = theme.INK if cur else theme.INK_2
+        band = hv.Area((FPR_AXIS, lo, hi), vdims=["lo", "hi"]).opts(color=theme.GHOST, alpha=0.8)
+        line = hv.Curve((FPR_AXIS, med)).opts(color=ink, line_width=2.5 if cur else 1.5)
+        chance = hv.Curve((FPR_AXIS, FPR_AXIS)).opts(color=theme.MUTED, line_width=1, line_dash="dotted")
+        marks = []
+        for f in (0.001, 0.01):
+            t = float(np.median([np.interp(f, FPR_AXIS, c) for c in curves]))
+            marks.append(hv.Points([(f, max(t, 1e-4))]).opts(color=ink, size=7))
+            marks.append(hv.Text(f, max(t, 1e-4), f" {100 * t:.1f}% @ {fmt_fpr(f)}", halign="left",
+                                 valign="top").opts(text_font_size="10px", text_color=ink))
+        vline = hv.VLine(S.fpr).opts(color=theme.ACCENT, line_width=1, alpha=0.6)
+        title = f"{theme.DEFENSE_LABEL[d]}{'  ◀ current' if cur else ''}\nAUC {aucs.mean():.3f} ± {aucs.std(ddof=1):.3f}"
+        plots.append(hv.Overlay([band, chance, line, vline, *marks]).opts(
+            logx=True, logy=True, xlim=(1e-4, 1), ylim=(1e-4, 1), title=title, height=250, responsive=True,
+            xlabel="FPR (log10)", ylabel="TPR (log10)", hooks=HOOKS, fontsize={"title": 10}))
+    return hv.Layout(plots).cols(3).opts(shared_axes=False)
+
+
+def roc_takeaway():
+    t = tpr_at(S.dataset, S.size, S.key, S.fpr).mean()
+    b = tpr_at(S.dataset, S.size, "baseline", S.fpr).mean()
+    if S.key == "baseline":
+        return (f"Undefended, RMIA identifies <em>{100 * t:.1f}%</em> of members at {fmt_fpr(S.fpr)} FPR "
+                f"({t / S.fpr:.1f}× chance); the defense panels show how far each pulls this back to chance.")
+    return (f"Under {theme.DEFENSE_LABEL[S.key]}, RMIA identifies <em>{100 * t:.1f}%</em> of members at "
+            f"{fmt_fpr(S.fpr)} FPR, against {100 * b:.1f}% undefended (chance = {fmt_fpr(S.fpr)}).")
+
+
 # ------------------------------------------------------------------------------------------------ layout
 def controls():
     w = pn.Param(S, parameters=CTRL + ["attribute"], show_name=False, default_layout=pn.Row,
@@ -295,6 +330,10 @@ def build():
                 "Grey = density of all records; coloured = records flagged in ≥1 seed (colour = share of seeds), "
                 "ink ring = training member; orange = the threshold and the five most exposed records.",
                 pn.Row(pn.pane.HoloViews(atlas_panel(True)), pn.pane.HoloViews(atlas_panel(False)))),
+        section(2, "Log-scale ROC", roc_takeaway,
+                "One panel per defense (log-log, the LiRA convention). Line = median over 3 seeds, grey band = "
+                "seed-to-seed range, dotted = chance. Orange line = the FPR control.",
+                pn.pane.HoloViews(hv.DynamicMap(roc_panels, streams=[hv.streams.Params(S, CTRL)]))),
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
         styles={"max-width": "1280px", "margin": "0 auto", "padding": "24px 28px"})
