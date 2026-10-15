@@ -19,8 +19,8 @@ from leakatlas.store import connect  # noqa: E402
 
 OUT = ROOT / "results" / "figures"
 PORT = 5017
-NAMES = ["record_atlas", "log_roc", "subgroup_ridgelines", "proxy_vs_truth", "stability_strip",
-         "record_inspector", "defense_tradeoff"]
+NAMES = ["record_atlas", "stability_strip", "record_inspector", "log_roc", "defense_tradeoff",
+         "proxy_vs_truth", "subgroup_ridgelines"]  # dashboard order (investigation order)
 WANT = {"fmnist": [n for n in NAMES if n != "subgroup_ridgelines"],     # ridgelines are Adult-only
         "adult": ["subgroup_ridgelines", "record_inspector"]}
 
@@ -55,12 +55,11 @@ def main():
         }
         with sync_playwright() as p:
             browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": 1400, "height": 1000}, device_scale_factor=2)
+            page = browser.new_page(viewport={"width": 1440, "height": 1000}, device_scale_factor=2)
             page.set_default_timeout(180_000)  # cold Adult load: 6 defenses x subgroup bootstraps
             for tag, query in states.items():
                 page.goto(f"http://localhost:{PORT}/viewer?{query}", wait_until="networkidle", timeout=180_000)
                 page.wait_for_timeout(12_000)  # let Bokeh + datashader finish drawing
-                page.locator(".la-controls").first.evaluate("e => e.style.position = 'static'")  # capture only
                 views = page.locator(".la-view")
                 for i, name in enumerate(NAMES):
                     if name not in WANT[tag]:
