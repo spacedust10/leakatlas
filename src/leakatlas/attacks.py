@@ -1,0 +1,45 @@
+"""Membership-inference audit of every trained target, via ML Privacy Meter's attack code.
+
+Usage: uv run python -m leakatlas.attacks configs/adult.yaml
+
+- LOSS and RMIA scores come from Privacy Meter's `run_loss` / `run_rmia` (unmodified, pinned submodule).
+  `run_loss` is fed per-sample *loss* (its own pipeline feeds softmax, which inverts the score).
+- Every threshold and RMIA's `offline_a` is fit on reference models only (shadow-only calibration,
+  Jebreel et al.): each reference is attacked as a pseudo-target by the others, and the target uses
+  the median of their thresholds. Target membership is used only to *evaluate*.
+"""
+
+import importlib.util
+import json
+import logging
+import sys
+from pathlib import Path
+
+import numpy as np
+import polars as pl
+import torch
+import torch.nn.functional as F
+from sklearn.metrics import roc_auc_score, roc_curve
+from torch.func import functional_call, grad, vmap
+
+from leakatlas.data import LOADERS
+from leakatlas.defenses import MIAShield, load_config, log_probs, make_split, model_path
+from leakatlas.store import FPR_GRID, AttackRow, RunRow, connect, replace_cell, replace_records
+
+_pm_spec = importlib.util.spec_from_file_location(
+    "privacy_meter_attacks", Path(__file__).resolve().parents[2] / "third_party/ml_privacy_meter/attacks.py")
+pm = importlib.util.module_from_spec(_pm_spec)
+_pm_spec.loader.exec_module(pm)
+log = logging.getLogger("leakatlas.attacks")
+CHUNK = 2048  # rows per run_rmia call; its [rows x population] ratio matrix is the memory peak
+
+
+def signals(model, x, y, dev):
+    lp = log_probs(model, x, dev)
+    loss = F.nll_loss(lp, y, reduction="none").numpy()
+    return np.exp(-loss), loss, (lp.argmax(1) == y).numpy()
+
+
+def chunked_rmia(target_idx, sig, pop, mem, k, a):
+    return np.concatenate([pm.run_rmia(target_idx, sig[i:i + CHUNK], pop, mem[i:i + CHUNK], k, a)
+                           for i in range(0, len(sig), CHUNK)])
