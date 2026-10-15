@@ -1,0 +1,16 @@
+# Adult (UCI) — MLP on CPU. Sizes = target training-set sizes S (members); non-members = S more records.
+dataset: adult
+device: cpu
+sizes: [2000, 10000]
+target_seeds: [0, 1, 2]
+num_references: 16          # Checkpoint 1 plan; refs train in complementary pairs on the shadow pool
+defender_val: 1000          # carved from the population pool, used only by early stopping
+batch_size: 256
+lr: 0.05
+defenses:
+  baseline: {epochs: 100}                                                    # SGD, no regularisation: overfits on purpose
+  aof: {epochs: 60, weight_decay: 5.0e-4, label_smoothing: 0.1, patience: 10}
+  dp_eps1: {epochs: 30, epsilon: 1.0, max_grad_norm: 1.0, lr: 0.5}           # delta = 1/S
+  dp_eps4: {epochs: 30, epsilon: 4.0, max_grad_norm: 1.0, lr: 0.5}
+  dp_eps8: {epochs: 30, epsilon: 8.0, max_grad_norm: 1.0, lr: 0.5}
+  miashield: {epochs: 100, k: 5}                                              # 5 disjoint sub-models + exact-signature exclusion
