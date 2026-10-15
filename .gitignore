@@ -1,0 +1,26 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Data, models, results caches (DuckDB rebuilt by `make train`)
+data/
+*.duckdb
+*.duckdb.wal
+runs/
+
+# Reference-only clones (read for docs/tool_notes.md, not vendored)
+third_party/lira_analysis/
+third_party/MIAShield/
+.DS_Store
