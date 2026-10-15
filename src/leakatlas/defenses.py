@@ -89,9 +89,10 @@ class MIAShield(nn.Module):
         return torch.tensor([self.signatures.get(r.numpy().tobytes(), -1) for r in x.cpu()])
 
     def forward(self, x, excl):
-        probs = torch.stack([F.softmax(m(x), -1) for m in self.subs], 1)          # [B, K, C]
-        keep = (torch.arange(len(self.subs), device=x.device)[None] != excl[:, None]).float()
-        return torch.log((probs * keep[..., None]).sum(1) / keep.sum(1, keepdim=True))
+        logp = torch.stack([F.log_softmax(m(x), -1) for m in self.subs], 1)       # [B, K, C]
+        keep = torch.arange(len(self.subs), device=x.device)[None] != excl[:, None]
+        # log-mean-exp over kept sub-models: no log(0) when a probability underflows
+        return torch.logsumexp(logp.masked_fill(~keep[..., None], float("-inf")), 1) - keep.sum(1, keepdim=True).log()
 
 
 def log_probs(model: nn.Module, x: torch.Tensor, device, bs: int = 4096) -> torch.Tensor:
