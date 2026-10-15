@@ -36,3 +36,20 @@ Only **two**: `RMIA` (Zarifzadeh et al. 2024, offline variant) and `LOSS`. Anyth
 
 ### Device
 `device` is a plain torch device string from the config. `speedyresnet`/`fast_train.py` is CUDA-only. Our own MLP/CNN run on CPU and MPS (benchmark below).
+
+## 2. lira_analysis (Jebreel et al., PoPETs 2026)
+
+Reusable ideas, verified in the code:
+- **Shadow-only threshold** (`comprehensive_analysis/analysis_utils.py:compute_shadow_thresholds`): for a target FPR, compute each *shadow* model's ROC threshold on its own known membership, then use the **median of the other models' thresholds** for the target. This is the protocol we adopt for every "flagged at 1% / 0.1% FPR" decision.
+- **TPR at FPR** (`metrics.py:compute_tpr_at_fpr`): the largest threshold with FPR ≤ target. **Precision under a prior** (`compute_precision`, Bayes with π).
+- **Loss ratio** (`utils/common.py:~389`): `test_loss / train_loss` from the final-epoch metrics row, per model. That is the model-level Proxy B.
+- **LiRA** (`attacks/lira.py`): online/offline with per-sample or fixed variance; score = `log(p_true) − log(1 − p_true)` averaged over augmentations. Offline LiRA needs many OUT models (paper: 256 shadow models). Quirk: online fixed-variance sets `sigma_out = np.std(dat_in)`, copied from Carlini et al.'s reference code.
+- **Per-sample reproducibility**: a record counts as vulnerable only if flagged in ≥ k of the runs ("support thresholding"). That is our Stability Strip.
+- Config scale: `num_shadow_models: 256`, `pkeep: 0.5`. Infeasible here, which is why we use RMIA (strong with few references).
+
+## 3. MIAShield (Jarin & Eshete, PoPETs 2023)
+
+- One Colab notebook (TensorFlow/Keras, CIFAR-10/100, plus `tensorflow_privacy`, `imagehash`, `opencv`). Nothing can be imported; the logic is re-implemented in PyTorch.
+- Mechanism (README + notebook): split the training set into **K disjoint subsets**, train one model per subset, and at query time an **exclusion oracle** drops the sub-model(s) whose subset contains the query; the remaining models' outputs are aggregated.
+- Oracles named in the README: **EO2-ESE** (exact signature, a hash of the input), **EO3-ASE** (approximate signature, perceptual image hash), **EO4-MCE** (model-confidence based), **EO5-COE** (collusion-based).
+- **Plan:** implement **ESE** (exact hash, so it works for tabular and image data with no new dependency). ASE needs `imagehash` (a new dependency); MCE and COE are out of scope unless you ask.
