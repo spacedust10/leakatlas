@@ -232,7 +232,7 @@ def atlas_panel(member: bool):
         y = float(tail(thr[np.isclose(thr.fpr, S.fpr)].threshold.median()))
         x0 = float(member_rows(S.frame(), member).gn10.min())
         line = hv.HLine(y).opts(color=theme.ACCENT, line_width=1.5)
-        lab = hv.Text(x0, y, f" {fmt_fpr(S.fpr)} FPR threshold (median over seeds, set on reference models)",
+        lab = hv.Text(x0, y, f" {fmt_fpr(S.fpr)} FPR threshold · ref-calibrated",
                       halign="left", valign="bottom").opts(text_color=theme.ACCENT, text_font_size="11px")
         out = pts * line * lab
         if member and len(df):
@@ -482,21 +482,21 @@ def inspector(*_):
         color="k", cmap=theme.SEQ, clim=(0, 3), size=10, line_color=theme.INK, line_width=1, tools=["hover"])
     risky = hv.Points([(i, y) for i, (_, y, k, _) in enumerate(per_def) if k > 0]).opts(
         size=17, fill_alpha=0, line_color=theme.ACCENT, line_width=2)
-    short = ["Undefended", "Anti-overfit", "DP ε=1", "DP ε=4", "DP ε=8", "MIAShield"]
+    short = ["none", "AoF", "DP ε1", "DP ε4", "DP ε8", "MIAS"]
     slope = (segs * pts * risky).opts(xticks=list(enumerate(short)),
                                       ylim=(-0.1, 4.1), yticks=SCORE_TICKS, xlim=(-0.4, len(xs) - 0.6), ylabel=SCORE_LABEL,
-                                      xlabel="", height=280, width=760, hooks=HOOKS,
-                                      title="Attack score under each defense (orange ring = flagged)")
+                                      xlabel="", height=260, responsive=True, hooks=HOOKS,
+                                      title="Score per defense (ring = flagged)")
     if S.dataset == "fmnist":
-        nn = neighbors(rid)
-        visual = pn.Row(image(rid, "this record", 150),
-                        *[image(int(j), f"neighbour {i + 1}", 90) for i, j in enumerate(nn)])
+        nn = neighbors(rid, k=4)  # four fit a half-width card
+        visual = pn.Row(image(rid, "this record", 100),
+                        *[image(int(j), f"nn {i + 1}", 48) for i, j in enumerate(nn)], margin=0)
     else:
         row = dataset_obj("adult").raw.filter(dataset_obj("adult").raw["record_id"] == rid).to_dicts()[0]
         visual = pn.pane.HTML('<div class="la-card"><table>' + "".join(
             f"<tr><td>{k.replace('_', ' ')}</td><td>{v}</td></tr>" for k, v in row.items() if k != "record_id")
                               + "</table></div>", width=340)
-    return pn.Column(pn.pane.HTML(head), visual, pn.pane.HoloViews(slope, sizing_mode="fixed", width=780))
+    return pn.Column(pn.pane.HTML(head), visual, pn.pane.HoloViews(slope, sizing_mode="stretch_width"))
 
 
 def inspector_takeaway():
@@ -615,8 +615,7 @@ def case_file(*_):
             f'flags at {fmt_fpr(S.fpr)} FPR, seeds of 3:<br>' + "<br>".join(rows) + "</div>")
 
 
-VIEW_NAMES = ["Record Atlas", "Log-scale ROC", "Subgroup ridgelines", "Proxy vs truth", "Stability strip",
-              "Record inspector", "Defense trade-off"]
+VIEW_NAMES = ['Record Atlas', 'Stability strip', 'Record inspector', 'Log-scale ROC', 'Defense trade-off', 'Proxy vs truth', 'Subgroup ridgelines']
 # Views live inside Panel's shadow roots, where #hash links cannot reach: search them and scroll.
 JUMP_JS = """
 function deep(root, cls) {
@@ -678,34 +677,37 @@ def build():
         section(1, "Record Atlas", atlas_takeaway,
                 "Each training record is a point: x = gradient norm at the final epoch (Proxy A), y = RMIA score. "
                 "Grey = density of all records; coloured = records flagged in ≥1 seed (colour = share of seeds), "
-                "ink ring = training member; orange = the threshold and the five most exposed records.",
+                "ink ring = training member; orange = the FPR threshold (median over seeds, set on reference models) "
+                "and the five most exposed records.",
                 pn.Row(pn.pane.HoloViews(atlas_panel(True)), pn.pane.HoloViews(atlas_panel(False)))),
-        section(2, "Log-scale ROC", roc_takeaway,
+        pn.Row(
+            section(2, "Stability strip", stability_takeaway,
+                    "Training records flagged in at least one seed, one row per number of seeds that flag them. "
+                    "Flags that appear in only one seed are what a single run would wrongly call a finding.",
+                    pn.pane.HoloViews(stability())),
+            section(3, "Record inspector", inspector_takeaway,
+                    "The selected record, its nearest training neighbours (Fashion-MNIST) or feature row (Adult), and "
+                    "its attack score under every defense (AoF = anti-overfitting, MIAS = MIAShield).",
+                    pn.panel(pn.bind(inspector, *[S.param[c] for c in CTRL + ["selected"]]))),
+            sizing_mode="stretch_width", margin=0),
+        section(4, "Log-scale ROC", roc_takeaway,
                 "One panel per defense (log-log, the LiRA convention). Line = median over 3 seeds, grey band = "
                 "seed-to-seed range, dotted = chance. Orange line = the FPR control.",
                 pn.pane.HoloViews(hv.DynamicMap(roc_panels, streams=[hv.streams.Params(S, CTRL)]))),
-        section(3, "Subgroup ridgelines", ridge_takeaway,
-                "Adult training records. Ridges = distribution of attack scores per subgroup (sorted by flag rate); "
-                "right column = flag rate with 95% percentile-bootstrap CI over records (seeds averaged per record). "
-                "Groups under 20 members are omitted. Ink ticks = selected records.",
-                pn.panel(pn.bind(ridgelines, *[S.param[c] for c in CTRL + ["attribute", "selected"]]))),
-        section(4, "Proxy vs truth", proxy_takeaway,
+        section(5, "Defense trade-off", tradeoff_takeaway,
+                "One point per defense at the current dataset and size. ε is written next to each DP-SGD point.",
+                pn.pane.HoloViews(hv.DynamicMap(tradeoff, streams=[hv.streams.Params(S, CTRL)]))),
+        section(6, "Proxy vs truth", proxy_takeaway,
                 "Left: per-record loss ratio (Proxy B) against the attack score; box-select to pick records. "
                 "Right: one point per configuration, model-level test/train loss ratio against attack TPR, with an "
                 "OLS fit; ring = current configuration.",
                 pn.Row(pn.pane.HoloViews(proxy_density()),
                        pn.pane.HoloViews(hv.DynamicMap(model_level, streams=[hv.streams.Params(S, CTRL)])))),
-        section(5, "Stability strip", stability_takeaway,
-                "Training records flagged in at least one seed, one row per number of seeds that flag them. "
-                "Flags that appear in only one seed are what a single run would wrongly call a finding.",
-                pn.pane.HoloViews(stability())),
-        section(6, "Record inspector", inspector_takeaway,
-                "The selected record, its nearest training neighbours (Fashion-MNIST) or feature row (Adult), and "
-                "its attack score under every defense.",
-                pn.panel(pn.bind(inspector, *[S.param[c] for c in CTRL + ["selected"]]))),
-        section(7, "Defense trade-off", tradeoff_takeaway,
-                "One point per defense at the current dataset and size. ε is written next to each DP-SGD point.",
-                pn.pane.HoloViews(hv.DynamicMap(tradeoff, streams=[hv.streams.Params(S, CTRL)]))),
+        section(7, "Subgroup ridgelines", ridge_takeaway,
+                "Adult training records. Ridges = distribution of attack scores per subgroup (sorted by flag rate); "
+                "right column = flag rate with 95% percentile-bootstrap CI over records (seeds averaged per record). "
+                "Groups under 20 members are omitted. Ink ticks = selected records.",
+                pn.panel(pn.bind(ridgelines, *[S.param[c] for c in CTRL + ["attribute", "selected"]]))),
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
         styles={"padding": "22px 32px 40px 32px", "max-width": "1400px"}, margin=0)

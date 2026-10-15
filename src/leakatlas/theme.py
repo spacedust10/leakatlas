@@ -48,6 +48,8 @@ body, .bk-root, .pn-wrapper {{ background:{SURFACE}; color:{INK}; font-family:{F
 .la-kicker b {{ color:{ACCENT}; font-weight:600; margin-right:8px; }}
 .la-takeaway {{ font-size:19px; font-weight:600; line-height:1.35; color:{INK}; margin:4px 0 6px 0; max-width:72ch; }}
 .la-takeaway em {{ font-style:normal; color:{ACCENT}; font-family:{MONO}; }}
+.la-view {{ background:{PANEL}; border:1px solid {RULE}; border-radius:8px; padding:16px 20px 12px 20px;
+            margin:0 0 16px 0; }}
 .la-note {{ font-size:12px; color:{INK_2}; margin:0 0 10px 0; max-width:96ch; line-height:1.5; }}
 
 /* verdict ledger: one typographic line of facts, not tiles */
@@ -80,7 +82,7 @@ def plot_defaults() -> None:
     """Bokeh-level defaults: recessive solid grid, no chart junk, readable 12px+ text."""
     common = dict(fontsize={"title": 13, "labels": 12, "xticks": 11, "yticks": 11},
                   toolbar="above", default_tools=["pan", "wheel_zoom", "reset"],
-                  bgcolor=SURFACE, show_frame=False)
+                  bgcolor=PANEL, show_frame=False)
     hv.opts.defaults(
         hv.opts.Scatter(**common, size=5, line_color=None),
         hv.opts.Points(**common, size=5),
@@ -99,8 +101,8 @@ def plot_defaults() -> None:
 def style_bokeh(plot, element) -> None:
     """Hook applied to every figure: solid hairline grid, quiet axes, theme font."""
     p = plot.state
-    p.background_fill_color = SURFACE
-    p.border_fill_color = SURFACE
+    p.background_fill_color = PANEL   # plots sit on view cards
+    p.border_fill_color = PANEL
     p.outline_line_color = None
     for ax in p.axis:
         ax.axis_line_color = MUTED
