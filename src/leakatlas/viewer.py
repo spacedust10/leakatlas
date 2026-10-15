@@ -570,31 +570,41 @@ def tradeoff_takeaway():
 
 
 # ------------------------------------------------------------------------------------------------ layout
+GROUPS = [("Scope", ["dataset", "size"]), ("Defense", ["defense", "eps"]), ("Evidence", ["seed", "fpr"]),
+          ("Subgroup", ["attribute"])]
+WIDGETS = {"seed": {"type": pn.widgets.RadioButtonGroup, "button_type": "default"},
+           "defense": {"type": pn.widgets.RadioButtonGroup, "button_type": "default"},
+           "fpr": {"type": pn.widgets.DiscreteSlider}}
+
+
 def controls():
-    w = pn.Param(S, parameters=CTRL + ["attribute"], show_name=False, default_layout=pn.Row,
-                 widgets={
-                          "seed": {"type": pn.widgets.RadioButtonGroup, "button_type": "default", "width": 170},
-                          "defense": {"type": pn.widgets.RadioButtonGroup, "button_type": "default", "width": 330},
-                          "eps": {"width": 110}, "dataset": {"width": 110}, "size": {"width": 100},
-                          "attribute": {"width": 150}, "fpr": {"type": pn.widgets.DiscreteSlider, "width": 220}})
-    return pn.Column(w, css_classes=["la-controls"], styles={"position": "sticky", "top": "0", "z-index": "10", "background": theme.SURFACE,
-                                "border-bottom": f"1px solid {theme.RULE}", "padding": "6px 0"})
+    """Controls grouped by the question they answer, each group under a visible label."""
+    col = []
+    for label, params in GROUPS:
+        col.append(pn.pane.HTML(f'<p class="la-label">{label}</p>', margin=0))
+        col.append(pn.Param(S, parameters=params, show_name=False, default_layout=pn.Column,
+                            widgets={k: v for k, v in WIDGETS.items() if k in params}, margin=0))
+    return pn.Column(*col, css_classes=["la-controls"], margin=0)
 
 
-def masthead():
+def brand():
     n = int(sql("SELECT count(*) n FROM record_scores").n[0])
     r = int(sql("SELECT count(*) n FROM runs").n[0])
     return pn.pane.HTML(
-        '<div class="la-masthead"><h1>LeakAtlas</h1><p>Which training records does a model leak through membership '
-        'inference, whose records are they, and could a cheap, attack-free signal have warned us? Every number '
-        f'below is queried live from {n:,} record×run audit rows over {r} target models (RMIA via ML Privacy '
-        'Meter; thresholds set on reference models only). Change the seed, defense, ε or FPR and watch whether a '
-        'record stays at risk: one run is never the answer.</p></div>')
+        '<p class="la-brand">Leak<b>Atlas</b></p><p class="la-thesis">Which training records a model leaks through '
+        'membership inference, whose they are, and whether a cheap attack-free signal saw it coming. '
+        f'Live from {n:,} record×run rows over {r} target models.</p>', margin=0)
+
+
+def sidebar():
+    return pn.Column(brand(), controls(), sizing_mode="fixed", width=300, margin=0,
+                     styles={"position": "sticky", "top": "0", "height": "100vh", "overflow-y": "auto",
+                             "background": theme.PANEL, "border-right": f"1px solid {theme.RULE}",
+                             "padding": "22px 20px 28px 20px", "box-sizing": "border-box"})
 
 
 def build():
-    return pn.Column(
-        masthead(), controls(),
+    main = pn.Column(
         section(1, "Record Atlas", atlas_takeaway,
                 "Each training record is a point: x = gradient norm at the final epoch (Proxy A), y = RMIA score. "
                 "Grey = density of all records; coloured = records flagged in ≥1 seed (colour = share of seeds), "
@@ -628,7 +638,8 @@ def build():
                 pn.pane.HoloViews(hv.DynamicMap(tradeoff, streams=[hv.streams.Params(S, CTRL)]))),
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
-        styles={"max-width": "1280px", "margin": "0 auto", "padding": "24px 28px"})
+        styles={"padding": "22px 32px 40px 32px", "max-width": "1400px"}, margin=0)
+    return pn.Row(sidebar(), main, sizing_mode="stretch_width", margin=0, styles={"background": theme.SURFACE})
 
 
 if pn.state.location is not None:  # shareable, reproducible views: every control (and the selection) lives in the URL
