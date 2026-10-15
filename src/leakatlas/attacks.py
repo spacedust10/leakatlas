@@ -40,6 +40,28 @@ def signals(model, x, y, dev):
     return np.exp(-loss), loss, (lp.argmax(1) == y).numpy()
 
 
+def grad_norms(model, x, y, dev, bs=512):
+    """L2 norm of each record's loss gradient w.r.t. all parameters at the final weights (Tobaben et al.)."""
+    model = model.to(dev).eval()
+    params = {k: v.detach() for k, v in model.named_parameters()}
+    shield = isinstance(model, MIAShield)
+    excl_all = model.oracle(x) if shield else torch.zeros(len(x), dtype=torch.long)
+
+    def loss_one(p, xi, yi, ei):
+        if shield:
+            lp = functional_call(model, p, (xi[None], ei[None]))
+        else:
+            lp = F.log_softmax(functional_call(model, p, (xi[None],)), -1)
+        return F.nll_loss(lp, yi[None])
+
+    per_sample = vmap(grad(loss_one), in_dims=(None, 0, 0, 0))
+    out = []
+    for i in range(0, len(x), bs):
+        g = per_sample(params, x[i:i + bs].to(dev), y[i:i + bs].to(dev), excl_all[i:i + bs].to(dev))
+        out.append(torch.sqrt(sum((v.flatten(1) ** 2).sum(1) for v in g.values())).cpu())
+    return torch.cat(out).numpy()
+
+
 def threshold_at(scores, member, fpr):
     """Largest threshold with FPR <= fpr (same rule as lira_analysis compute_tpr_at_fpr)."""
     f, _, t = roc_curve(member, scores)
