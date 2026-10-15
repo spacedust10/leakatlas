@@ -165,7 +165,7 @@ def section(n, name, takeaway, note, *body):
     return pn.Column(
         pn.pane.HTML(f'<p class="la-kicker">{n:02d} · {name}</p>'),
         pn.pane.HTML(pn.bind(lambda *_: f'<p class="la-takeaway">{takeaway()}</p>', *[S.param[c] for c in CTRL + ["attribute", "selected"]])),
-        pn.pane.HTML(f'<p class="la-note">{note}</p>'), *body, css_classes=["la-view"])
+        pn.pane.HTML(f'<p class="la-note">{note}</p>'), *body, css_classes=["la-view", f"la-anchor-{n}"])
 
 
 def select_box(member_filter=None, xcol="gn10", ycol="st", frame_fn=None):
@@ -615,9 +615,42 @@ def case_file(*_):
             f'flags at {fmt_fpr(S.fpr)} FPR, seeds of 3:<br>' + "<br>".join(rows) + "</div>")
 
 
+VIEW_NAMES = ["Record Atlas", "Log-scale ROC", "Subgroup ridgelines", "Proxy vs truth", "Stability strip",
+              "Record inspector", "Defense trade-off"]
+# Views live inside Panel's shadow roots, where #hash links cannot reach: search them and scroll.
+JUMP_JS = """
+function deep(root, cls) {
+  const hit = root.querySelector('.' + cls);
+  if (hit) return hit;
+  for (const el of root.querySelectorAll('*')) {
+    if (el.shadowRoot) { const r = deep(el.shadowRoot, cls); if (r) return r; }
+  }
+  return null;
+}
+const target = deep(document, 'la-anchor-' + n);
+const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (target) target.scrollIntoView({behavior: still ? 'auto' : 'smooth', block: 'start'});
+"""
+INDEX_CSS = f"""
+.bk-btn {{ background: transparent !important; border: none; border-left: 2px solid transparent; border-radius: 0;
+          color: {theme.INK_2}; font-family: {theme.MONO}; font-size: 12px; text-align: left; padding: 5px 8px;
+          min-height: 28px; cursor: pointer; transition: color .15s ease-out, border-color .15s ease-out; }}
+.bk-btn:hover, .bk-btn:focus-visible {{ color: {theme.INK}; border-left-color: {theme.ACCENT}; outline: none; }}
+"""
+
+
+def view_index():
+    buttons = []
+    for n, name in enumerate(VIEW_NAMES, 1):
+        b = pn.widgets.Button(name=f"{n:02d}  {name}", stylesheets=[INDEX_CSS], margin=(0, 0), sizing_mode="stretch_width")
+        b.js_on_click(args={"n": n}, code=JUMP_JS)
+        buttons.append(b)
+    return pn.Column(pn.pane.HTML('<p class="la-label">Views</p>', margin=0), *buttons, margin=0)
+
+
 def sidebar():
     case = pn.pane.HTML(pn.bind(case_file, *[S.param[c] for c in CTRL + ["selected"]]), margin=0)
-    return pn.Column(brand(), case, controls(), sizing_mode="fixed", width=300, margin=0,
+    return pn.Column(brand(), controls(), case, view_index(), sizing_mode="fixed", width=300, margin=0,
                      styles={"position": "sticky", "top": "0", "height": "100vh", "overflow-y": "auto",
                              "background": theme.PANEL, "border-right": f"1px solid {theme.RULE}",
                              "padding": "22px 20px 28px 20px", "box-sizing": "border-box"})
