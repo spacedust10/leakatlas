@@ -202,4 +202,6 @@ def train_all(cfg: ExperimentConfig, only: str | None = None):
 
 
 if __name__ == "__main__":
-    train_all(load_config(sys.argv[1]), sys.argv[2] if len(sys.argv) > 2 else None)
+    # Call through the importable module so pickled classes (MIAShield) resolve as leakatlas.defenses.*
+    from leakatlas import defenses
+    defenses.train_all(defenses.load_config(sys.argv[1]), sys.argv[2] if len(sys.argv) > 2 else None)
