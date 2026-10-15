@@ -299,6 +299,70 @@ def roc_takeaway():
             f"{fmt_fpr(S.fpr)} FPR, against {100 * b:.1f}% undefended (chance = {fmt_fpr(S.fpr)}).")
 
 
+# --------------------------------------------------------------------------------- 3. Subgroup ridgelines
+XS = np.linspace(0, 4, 200)
+
+
+def lambda_pct():
+    from bokeh.models import CustomJSTickFormatter
+    return CustomJSTickFormatter(code="return (100 * tick).toFixed(1) + '%'")
+
+
+def ridge_facet(defense):
+    df = records("adult", S.size, defense, S.fpr, S.seed).query("member")
+    attr = S.attribute
+    groups = [g for g, n in df[attr].value_counts().items() if n >= 20]
+    groups = sorted(groups, key=lambda g: df.loc[df[attr] == g, "flag_rate"].mean())
+    rng = np.random.default_rng(0)
+    areas, dots, bars, labels = [], [], [], []
+    for i, g in enumerate(groups):
+        sub = df[df[attr] == g]
+        dens = stats.gaussian_kde(sub.st)(XS) if sub.st.std() > 0 else np.zeros_like(XS)
+        dens = 0.85 * dens / dens.max() if dens.max() > 0 else dens
+        cur = defense == S.key
+        areas.append(hv.Area((XS, i + dens, np.full_like(XS, i)), "score_t", ["ridge", "ridge0"]).opts(
+            color=theme.MUTED if cur else theme.GHOST, alpha=0.75))
+        areas.append(hv.Curve((XS, i + dens), "score_t", "ridge").opts(color=theme.INK if cur else theme.INK_2, line_width=1))
+        sel = sub[sub.record_id.isin(S.selected)]
+        if len(sel):
+            areas.append(hv.Spikes(sel.st.to_numpy(), "score_t").opts(position=i, spike_length=0.3, color=theme.INK, line_width=1.5))
+        v = sub.flag_rate.to_numpy()
+        boot = v[rng.integers(0, len(v), (500, len(v)))].mean(1)  # percentile bootstrap over records
+        lo, hi = np.percentile(boot, [2.5, 97.5])
+        dots.append((v.mean(), i))
+        bars.append((lo, i, hi, i))
+        labels.append((4.0, i + 0.3, f"{g}  (n={len(v)})"))
+    ridge = hv.Overlay(areas + [hv.Labels(labels, ["score_t", "ridge"], "text").opts(text_align="right", text_font_size="10px", text_color=theme.INK_2)]).opts(
+        title=theme.DEFENSE_LABEL[defense], xlabel=SCORE_LABEL, xticks=SCORE_TICKS, yaxis=None,
+        height=60 + 46 * len(groups), xlim=(0, 4.05), responsive=True, hooks=HOOKS, fontsize={"title": 11})
+    xmax = max(0.02, max(b[2] for b in bars) * 1.15) if bars else 0.05
+    dot = (hv.Segments(bars, ["rate_lo", "row", "rate_hi", "row_b"]).opts(color=theme.INK, line_width=1.5)
+           * hv.Points(dots, ["rate_lo", "row"]).opts(color=theme.ACCENT, size=7)).opts(
+        xlim=(0, xmax), ylim=(-0.3, len(groups) - 0.2), yaxis=None, xlabel=f"flag rate @ {fmt_fpr(S.fpr)} (95% CI)",
+        height=60 + 46 * len(groups), width=170, hooks=HOOKS, title=" ", xformatter=lambda_pct(), xticks=3,
+        toolbar=None)
+    return pn.Row(pn.pane.HoloViews(ridge, sizing_mode="stretch_width", linked_axes=False),
+                  pn.pane.HoloViews(dot, sizing_mode="fixed", width=190, linked_axes=False))
+
+
+def ridgelines(*_):
+    if S.dataset != "adult":
+        return pn.pane.HTML('<p class="la-note">Subgroup analysis uses Adult\'s sex, race and age band. '
+                            'Switch the dataset to <b>adult</b> to see it.</p>')
+    return pn.GridBox(*[ridge_facet(d) for d in DEFENSES], ncols=2)
+
+
+def ridge_takeaway():
+    if S.dataset != "adult":
+        return "Subgroup exposure is measured on Adult only."
+    df = S.frame().query("member")
+    rates = df.groupby(S.attribute).agg(rate=("flag_rate", "mean"), n=("flag_rate", "size")).query("n >= 20").sort_values("rate")
+    lo, hi = rates.iloc[0], rates.iloc[-1]
+    ratio = f"{hi.rate / lo.rate:.1f}× as often as" if lo.rate > 0 else "while none of"
+    return (f"Under {theme.DEFENSE_LABEL[S.key]}, <em>{rates.index[-1]}</em> members are flagged {ratio} "
+            f"{rates.index[0]} members ({100 * hi.rate:.2f}% vs {100 * lo.rate:.2f}%).")
+
+
 # ------------------------------------------------------------------------------------------------ layout
 def controls():
     w = pn.Param(S, parameters=CTRL + ["attribute"], show_name=False, default_layout=pn.Row,
@@ -334,6 +398,11 @@ def build():
                 "One panel per defense (log-log, the LiRA convention). Line = median over 3 seeds, grey band = "
                 "seed-to-seed range, dotted = chance. Orange line = the FPR control.",
                 pn.pane.HoloViews(hv.DynamicMap(roc_panels, streams=[hv.streams.Params(S, CTRL)]))),
+        section(3, "Subgroup ridgelines", ridge_takeaway,
+                "Adult training records. Ridges = distribution of attack scores per subgroup (sorted by flag rate); "
+                "right column = flag rate with 95% percentile-bootstrap CI over records (seeds averaged per record). "
+                "Groups under 20 members are omitted. Ink ticks = selected records.",
+                pn.panel(pn.bind(ridgelines, *[S.param[c] for c in CTRL + ["attribute", "selected"]]))),
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
         styles={"max-width": "1280px", "margin": "0 auto", "padding": "24px 28px"})
