@@ -596,8 +596,28 @@ def brand():
         f'Live from {n:,} record×run rows over {r} target models.</p>', margin=0)
 
 
+def case_file(*_):
+    """The selected record, pinned in the sidebar so its evidence stays visible while scrolling views."""
+    if not S.selected:
+        return ('<p class="la-label">Case file</p><div class="la-case">No record selected. Click a point or '
+                'box-select in the Atlas, Proxy or Stability view.</div>')
+    rid = int(S.selected[0])
+    cur = S.frame().set_index("record_id").loc[rid]
+    who = f"{cur.sex} · {cur.race} · {cur.age_band}" if S.dataset == "adult" else f"{cur.class_name}"
+    rows = []
+    for d in DEFENSES:
+        k = int(records(S.dataset, S.size, d, S.fpr, S.seed).set_index("record_id").loc[rid].k)
+        mark = f'<span class="risk">{"■" * k}{"□" * (3 - k)}</span>' if k else "□□□"
+        rows.append(f"{mark} {theme.DEFENSE_LABEL[d]}")
+    more = f" (+{len(S.selected) - 1:,} more selected)" if len(S.selected) > 1 else ""
+    return (f'<p class="la-label">Case file</p><div class="la-case"><b>record {rid}</b>{more}<br>'
+            f'{"training member" if cur.member else "held-out"} · {who}<br>'
+            f'flags at {fmt_fpr(S.fpr)} FPR, seeds of 3:<br>' + "<br>".join(rows) + "</div>")
+
+
 def sidebar():
-    return pn.Column(brand(), controls(), sizing_mode="fixed", width=300, margin=0,
+    case = pn.pane.HTML(pn.bind(case_file, *[S.param[c] for c in CTRL + ["selected"]]), margin=0)
+    return pn.Column(brand(), case, controls(), sizing_mode="fixed", width=300, margin=0,
                      styles={"position": "sticky", "top": "0", "height": "100vh", "overflow-y": "auto",
                              "background": theme.PANEL, "border-right": f"1px solid {theme.RULE}",
                              "padding": "22px 20px 28px 20px", "box-sizing": "border-box"})
