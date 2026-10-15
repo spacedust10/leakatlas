@@ -444,6 +444,71 @@ def stability_takeaway():
             f"flagged records are reproducibly at risk ({n0:,} are never flagged).")
 
 
+# --------------------------------------------------------------------------------- 6. Record inspector
+def neighbors(rid, k=5):
+    d = dataset_obj("fmnist")
+    split = make_split(len(d.y), CONFIGS["fmnist"], S.size)
+    pool = split.members[split.members != rid]
+    flat = d.x[pool].flatten(1).numpy()
+    q = d.x[rid].flatten().numpy()
+    return pool[np.argsort(((flat - q) ** 2).sum(1))[:k]]
+
+
+def image(rid, title, w=150):
+    d = dataset_obj("fmnist")
+    img = (d.x[rid, 0].numpy() * FMNIST_STD + FMNIST_MEAN)[::-1]
+    return hv.Image(img, bounds=(0, 0, 28, 28)).opts(cmap="gray_r", xaxis=None, yaxis=None, frame_width=w,
+                                                      frame_height=w, title=title, toolbar=None, fontsize={"title": 9})
+
+
+def inspector(*_):
+    if not S.selected:
+        return pn.pane.HTML('<p class="la-note">Click a point (or box-select) in the Atlas, Proxy or Stability view.</p>')
+    rid = int(S.selected[0])
+    per_def = []
+    for d in DEFENSES:
+        r = records(S.dataset, S.size, d, S.fpr, S.seed).set_index("record_id").loc[rid]
+        per_def.append((theme.DEFENSE_LABEL[d], float(r.st), int(r.k), float(r.p_true)))
+    cur = S.frame().set_index("record_id").loc[rid]
+    risk = f'<span class="la-risk">at risk: flagged in {int(cur.k)}/3 seeds</span>' if cur.k else "not flagged"
+    who = (f"{cur.sex}, {cur.race}, age {cur.age_band}" if S.dataset == "adult" else f"class: {cur.class_name}")
+    head = (f'<div class="la-card"><b>Record {rid}</b> · {"training member" if cur.member else "held-out"} · {who}<br>'
+            f'{risk} under {theme.DEFENSE_LABEL[S.key]} · model confidence in true label {100 * cur.p_true:.1f}%'
+            f'{"" if len(S.selected) == 1 else f" · {len(S.selected):,} records selected (showing the first)"}</div>')
+    xs = list(range(len(per_def)))
+    base_y = per_def[0][1]
+    segs = hv.Segments([(0, base_y, i, y) for i, (_, y, _, _) in enumerate(per_def)]).opts(color=theme.GHOST, line_width=1.5)
+    pts = hv.Points([(i, y, k) for i, (_, y, k, _) in enumerate(per_def)], vdims=["k"]).opts(
+        color="k", cmap=theme.SEQ, clim=(0, 3), size=10, line_color=theme.INK, line_width=1, tools=["hover"])
+    risky = hv.Points([(i, y) for i, (_, y, k, _) in enumerate(per_def) if k > 0]).opts(
+        size=17, fill_alpha=0, line_color=theme.ACCENT, line_width=2)
+    short = ["Undefended", "Anti-overfit", "DP ε=1", "DP ε=4", "DP ε=8", "MIAShield"]
+    slope = (segs * pts * risky).opts(xticks=list(enumerate(short)),
+                                      ylim=(-0.1, 4.1), yticks=SCORE_TICKS, xlim=(-0.4, len(xs) - 0.6), ylabel=SCORE_LABEL,
+                                      xlabel="", height=280, width=760, hooks=HOOKS,
+                                      title="Attack score under each defense (orange ring = flagged)")
+    if S.dataset == "fmnist":
+        nn = neighbors(rid)
+        visual = pn.Row(image(rid, "this record", 150),
+                        *[image(int(j), f"neighbour {i + 1}", 90) for i, j in enumerate(nn)])
+    else:
+        row = dataset_obj("adult").raw.filter(dataset_obj("adult").raw["record_id"] == rid).to_dicts()[0]
+        visual = pn.pane.HTML('<div class="la-card"><table>' + "".join(
+            f"<tr><td>{k.replace('_', ' ')}</td><td>{v}</td></tr>" for k, v in row.items() if k != "record_id")
+                              + "</table></div>", width=340)
+    return pn.Column(pn.pane.HTML(head), visual, pn.pane.HoloViews(slope, sizing_mode="fixed", width=780))
+
+
+def inspector_takeaway():
+    if not S.selected:
+        return "Select any record to see whether its risk survives each defense."
+    rid = int(S.selected[0])
+    ks = {d: int(records(S.dataset, S.size, d, S.fpr, S.seed).set_index("record_id").loc[rid].k) for d in DEFENSES}
+    kept = [theme.DEFENSE_LABEL[d] for d in DEFENSES[1:] if ks[d] > 0]
+    return (f"Record {rid} is flagged in {ks['baseline']}/3 undefended seeds; "
+            + (f"it stays flagged under <em>{', '.join(kept)}</em>." if kept else "no defense leaves it flagged."))
+
+
 # ------------------------------------------------------------------------------------------------ layout
 def controls():
     w = pn.Param(S, parameters=CTRL + ["attribute"], show_name=False, default_layout=pn.Row,
@@ -494,6 +559,10 @@ def build():
                 "Training records flagged in at least one seed, one row per number of seeds that flag them. "
                 "Flags that appear in only one seed are what a single run would wrongly call a finding.",
                 pn.pane.HoloViews(stability())),
+        section(6, "Record inspector", inspector_takeaway,
+                "The selected record, its nearest training neighbours (Fashion-MNIST) or feature row (Adult), and "
+                "its attack score under every defense.",
+                pn.panel(pn.bind(inspector, *[S.param[c] for c in CTRL + ["selected"]]))),
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
         styles={"max-width": "1280px", "margin": "0 auto", "padding": "24px 28px"})
