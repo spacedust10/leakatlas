@@ -104,6 +104,9 @@ def style_bokeh(plot, element) -> None:
     p.background_fill_color = PANEL   # plots sit on view cards
     p.border_fill_color = PANEL
     p.outline_line_color = None
+    if p.toolbar is not None:  # tools appear on hover only; no library logo competing with the data
+        p.toolbar.logo = None
+        p.toolbar.autohide = True
     for ax in p.axis:
         ax.axis_line_color = MUTED
         ax.major_tick_line_color = MUTED
