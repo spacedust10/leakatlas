@@ -431,7 +431,7 @@ def stability():
     hl = hv.DynamicMap(lambda **_: hv.Points(stability_frame()[lambda d: d.record_id.isin(S.selected)], ["st", "yj"]).opts(
         size=11, fill_alpha=0, line_color=theme.INK, line_width=2), streams=[hv.streams.Params(S, CTRL + ["selected"])])
     return (dm * hl).opts(yticks=[(1, "1 of 3 seeds"), (2, "2 of 3"), (3, "all 3 seeds")], ylim=(0.4, 3.6),
-                          xlabel=SCORE_LABEL + ", mean over seeds", xticks=SCORE_TICKS, xlim=(-0.1, 4.1), ylabel="", height=300, responsive=True,
+                          xlabel="RMIA score (tail-stretched), seed mean", xticks=SCORE_TICKS, xlim=(-0.1, 4.1), ylabel="", height=300, responsive=True,
                           hooks=HOOKS, title="Training records flagged at least once")
 
 
