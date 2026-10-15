@@ -48,16 +48,33 @@ line), and favor direct labels.
   the default and a single seed is labeled as such. The Stability Strip exists to show which flags are
   one-run noise.
 
+## Layout: a forensic console, not a report
+
+The first version stacked seven white sections under a sticky control bar and read as a generic report.
+The redesign (UI/UX Pro Max design-system search: data-dense dashboard, Fira type pairing; its blue/amber
+palette and KPI cards were rejected as generic and against the brief) gives the app a console identity:
+
+- **Case-file sidebar** (fixed): brand and thesis, controls grouped by the question they answer
+  (scope, defense, evidence, subgroup) under visible labels, the selected record pinned as a case file,
+  and a numbered view index that jumps to each card through Panel's shadow roots.
+- **Verdict ledger**: one monospace line stating what the current configuration leaks and costs, as
+  prose rather than KPI tiles.
+- **Cards in investigation order**: who is exposed (Atlas) → is it reproducible, and who is it
+  (Stability beside the Inspector) → attack strength (ROC) → cost of defending (Trade-off) → could a
+  proxy warn (Proxy vs truth) → who bears it (Subgroups).
+- **Quiet chrome**: plot toolbars appear on hover only; 150 ms colour transitions, none under
+  `prefers-reduced-motion`; visible focus states on the index.
+
 ## The rules the code enforces (`src/leakatlas/theme.py`)
 
 | Rule | Implementation |
 |---|---|
-| One accent, reserved for "at risk" | `#c2410c` (burnt orange). Used only for flagged records / the FPR threshold. Validated with the dataviz skill's `validate_palette.js`: worst CVD ΔE 11.5 vs the cividis anchors (≥ 8 target), normal-vision ΔE 17.4. |
-| Sequential = one CVD-safe ramp | cividis, truncated to its lower 85% (the top yellow is 1.2:1 on the light surface). Used for scores / flag-rate across seeds. |
+| One accent, reserved for "at risk" | `#ff7a45` on the dark surface. Used only for flagged records, the FPR threshold and call-outs. Re-validated for dark mode with the dataviz skill's `validate_palette.js`: worst CVD ΔE 11.7 vs the cividis anchors (≥ 8 target); 7.3:1 text contrast. |
+| Sequential = one CVD-safe ramp | cividis from step 91 of 256, the first step at ≥ 3:1 on the near-black surface (its dark blues vanish there). Used for scores / flag-rate across seeds. |
 | No categorical hue per defense | 6 defenses exceed the 3-hue all-pairs limit, so defenses are separated by **small multiples and direct labels**, never by color. |
-| Neutrals carry everything else | ink `#16161a`, secondary `#55555e`, muted `#9a9aa3`, rules `#e4e4e7`, surface `#fcfcfb`. |
+| Neutrals carry everything else | surface `#0f1115`, card `#15181e`, ink `#e9e6df` (15.2:1), secondary `#a7adb8` (8.4:1), muted `#6f7682` (4.1:1), rules `#262a33`. |
 | Text never wears a series color | Labels are ink/secondary; marks carry the color. |
 | No dual axes, no pies, no KPI tiles, no rainbow, no unlabeled legends | Enforced by construction: every plot has one y-scale; the brief's "flag-rate overlay" is an aligned separate column, not a second axis. |
 | Honest axes | Rates start at 0; log axes are labelled "(log10)"; ROC shows the chance diagonal. |
 | Relief for low-contrast fills | Members get a 1.5px ink ring; every view has a hover tooltip and the record table. |
-| Typography | System sans stack (no web-font fetch, works offline); hierarchy 22/15/12px, weights 650/500/400; takeaways in ink, notes in secondary. |
+| Typography | Fira Code for numbers, labels and ticks (tabular figures); Fira Sans for prose; system fallbacks keep it offline-safe. Scale 11/12/13/15/19/26 px. |
