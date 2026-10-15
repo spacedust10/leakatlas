@@ -1,0 +1,3 @@
+[submodule "third_party/ml_privacy_meter"]
+	path = third_party/ml_privacy_meter
+	url = https://github.com/privacytrustlab/ml_privacy_meter.git
