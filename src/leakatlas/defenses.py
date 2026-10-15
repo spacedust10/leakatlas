@@ -76,6 +76,24 @@ def make_split(n: int, cfg: ExperimentConfig, size: int) -> Split:
                  rest[:cfg.defender_val], rest[cfg.defender_val:])
 
 
+class MIAShield(nn.Module):
+    """Ensemble on K disjoint subsets; the exact-signature oracle (ESE) drops the sub-model
+    that trained on the query (Jarin & Eshete, PoPETs 2023). forward() returns log-probs."""
+
+    def __init__(self, subs: list[nn.Module], subsets: list[torch.Tensor]):
+        super().__init__()
+        self.subs = nn.ModuleList(subs)
+        self.signatures = {row.numpy().tobytes(): k for k, xs in enumerate(subsets) for row in xs}
+
+    def oracle(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.tensor([self.signatures.get(r.numpy().tobytes(), -1) for r in x.cpu()])
+
+    def forward(self, x, excl):
+        probs = torch.stack([F.softmax(m(x), -1) for m in self.subs], 1)          # [B, K, C]
+        keep = (torch.arange(len(self.subs), device=x.device)[None] != excl[:, None]).float()
+        return torch.log((probs * keep[..., None]).sum(1) / keep.sum(1, keepdim=True))
+
+
 def log_probs(model: nn.Module, x: torch.Tensor, device, bs: int = 4096) -> torch.Tensor:
     """Served log-probabilities on CPU, applying MIAShield's oracle when present."""
     model.eval()
@@ -146,4 +164,9 @@ def train_one(name: str, p: dict, d: Dataset, idx: np.ndarray, split: Split, cfg
                 opt.step()
         return model._module, {"epochs_run": p["epochs"], "eps_spent": engine.get_epsilon(delta),
                                "delta": delta, "noise_multiplier": opt.noise_multiplier}
+    if name == "miashield":
+        parts = np.array_split(np.random.default_rng(seed).permutation(len(idx)), p["k"])
+        subs = [_sgd_train(new(), x[s], y[s], p["epochs"], lr, bs, dev, seed * 100 + k)[0]
+                for k, s in enumerate(parts)]
+        return MIAShield(subs, [x[s] for s in parts]), {"epochs_run": p["epochs"]}
     raise ValueError(f"unknown defense {name}")
