@@ -170,3 +170,34 @@ def train_one(name: str, p: dict, d: Dataset, idx: np.ndarray, split: Split, cfg
                 for k, s in enumerate(parts)]
         return MIAShield(subs, [x[s] for s in parts]), {"epochs_run": p["epochs"]}
     raise ValueError(f"unknown defense {name}")
+
+
+def model_path(cfg: ExperimentConfig, size: int, defense: str, role: str) -> Path:
+    return RUNS_DIR / cfg.dataset / f"S{size}" / defense / f"{role}.pt"
+
+
+def train_all(cfg: ExperimentConfig, only: str | None = None):
+    d = LOADERS[cfg.dataset]()
+    for size in cfg.sizes:
+        split = make_split(len(d.y), cfg, size)
+        for name, p in cfg.defenses.items():
+            if only and name != only:
+                continue
+            jobs = [(f"ref{r}", split.shadow[split.ref_keep[r]], 100 + r) for r in range(cfg.num_references)]
+            jobs += [(f"target_seed{s}", split.members, s) for s in cfg.target_seeds]
+            for role, idx, seed in jobs:
+                path = model_path(cfg, size, name, role)
+                if path.exists():
+                    continue
+                t = time.perf_counter()
+                model, info = train_one(name, p, d, idx, split, cfg, seed)
+                info |= {"train_sec": time.perf_counter() - t, "seed": seed, "train_size": len(idx)}
+                path.parent.mkdir(parents=True, exist_ok=True)
+                torch.save(model.cpu(), path)
+                path.with_suffix(".json").write_text(json.dumps(info))
+                print(f"{cfg.dataset} S{size} {name:9s} {role:13s} {info['train_sec']:6.1f}s "
+                      f"{json.dumps({k: v for k, v in info.items() if k in ('eps_spent', 'epochs_run')})}", flush=True)
+
+
+if __name__ == "__main__":
+    train_all(load_config(sys.argv[1]), sys.argv[2] if len(sys.argv) > 2 else None)
