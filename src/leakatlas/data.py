@@ -38,6 +38,7 @@ class Dataset:
     groups: pl.DataFrame  # per-record attributes kept for analysis (subgroups / image label)
     num_classes: int
     source_sha256: str
+    raw: pl.DataFrame | None = None  # human-readable record (Adult) for the dashboard's record card
 
 
 def _download(url: str, dest: Path) -> bytes:
@@ -76,7 +77,8 @@ def load_adult() -> Dataset:
     x = torch.tensor(np.hstack([num, cat]), dtype=torch.float32)
     y = torch.tensor(df["label"].to_numpy(), dtype=torch.int64)
     groups = df.select("sex", "race", "age_band", "age").with_row_index("record_id")
-    return Dataset("adult", x, y, groups, 2, hashlib.sha256(raw).hexdigest())
+    readable = df.select([c for c in ADULT_COLS if c != "fnlwgt"]).with_row_index("record_id")
+    return Dataset("adult", x, y, groups, 2, hashlib.sha256(raw).hexdigest(), readable)
 
 
 def load_fmnist() -> Dataset:
