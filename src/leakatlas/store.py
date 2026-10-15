@@ -2,6 +2,9 @@
 are small side tables. Writes are idempotent: rows of a (dataset, train_size, defense) cell are
 replaced as a unit."""
 
+import tempfile
+from pathlib import Path
+
 import duckdb
 import polars as pl
 from pydantic import BaseModel
@@ -58,6 +61,20 @@ CREATE TABLE IF NOT EXISTS record_scores (run_id VARCHAR, record_id BIGINT, memb
 """
 
 
+def _insert(con, table: str, df: pl.DataFrame) -> None:
+    # ponytail: Parquet hop instead of DuckDB's polars scan, which needs pyarrow (not a dependency).
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "rows.parquet"
+        df.write_parquet(path)
+        con.execute(f"INSERT INTO {table} BY NAME SELECT * FROM read_parquet(?)", [str(path)])
+
+
+def query(con, sql: str, params=None) -> pl.DataFrame:
+    """Run SQL and return a polars DataFrame (via numpy, no pyarrow)."""
+    cols = con.execute(sql, params or []).fetchnumpy()
+    return pl.DataFrame([pl.Series(k, v.tolist() if hasattr(v, "mask") else v) for k, v in cols.items()])
+
+
 def connect(read_only: bool = False) -> duckdb.DuckDBPyConnection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(DB_PATH), read_only=read_only)
@@ -75,10 +92,10 @@ def replace_cell(con, run_ids: list[str], runs: list[RunRow], attacks: list[Atta
         con.execute(f"DELETE FROM {t} WHERE run_id IN (SELECT unnest(?))", [run_ids])
     for t, df in (("runs", runs_df), ("attack_results", attacks_df), ("thresholds", thresholds),
                   ("record_scores", scores)):
-        con.execute(f"INSERT INTO {t} BY NAME SELECT * FROM df")
+        _insert(con, t, df)
     con.execute("COMMIT")
 
 
 def replace_records(con, dataset: str, df: pl.DataFrame) -> None:
     con.execute("DELETE FROM records WHERE dataset = ?", [dataset])
-    con.execute("INSERT INTO records BY NAME SELECT * FROM df")
+    _insert(con, "records", df)
