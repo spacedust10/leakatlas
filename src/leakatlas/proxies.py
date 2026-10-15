@@ -86,3 +86,15 @@ def evaluate(df: pl.DataFrame) -> pl.DataFrame:
                     "spearman": stats.spearmanr(s, test["score_rmia"].to_numpy()).statistic,  # raw, unoriented
                     "precision": prec, "recall": (pred & y).sum() / y.sum(), "lift": prec / y.mean()})
     return pl.DataFrame(rows, infer_schema_length=None)
+
+
+def model_level(con) -> pl.DataFrame:
+    """Spearman between Jebreel's model-level loss ratio and RMIA TPR@1% FPR across all target runs."""
+    df = query(con, """SELECT r.dataset, r.loss_ratio, a.tpr_at_1, a.auc FROM runs r
+                       JOIN attack_results a USING (run_id) WHERE a.attack = 'rmia'""")
+    rows = []
+    for name, g in [("pooled", df)] + [(d, df.filter(pl.col("dataset") == d)) for d in ("adult", "fmnist")]:
+        for metric in ("tpr_at_1", "auc"):
+            r = stats.spearmanr(g["loss_ratio"].to_numpy(), g[metric].to_numpy())
+            rows.append({"scope": name, "metric": metric, "n_runs": len(g), "spearman": r.statistic, "p": r.pvalue})
+    return pl.DataFrame(rows)
