@@ -55,7 +55,11 @@ def signals(model, x, y, dev):
             zy = z.gather(2, idx).squeeze(2)
             margin = torch.logsumexp(z.scatter(2, idx, float("-inf")), 2) - zy      # [B, K]
             keep = torch.arange(len(subs))[None] != eb[:, None]
-            logp = torch.logsumexp(torch.where(keep, -F.softplus(margin), float("-inf")), 1) - keep.sum(1).log()
+            # q = mean over kept sub-models of (1 - p_k). -log1p(-q) is exact for tiny losses and, unlike
+            # logsumexp - log(K), has no K-dependent rounding floor (K differs: members 4, non-members 5).
+            q = (torch.sigmoid(margin) * keep).sum(1) / keep.sum(1).double()
+            lme = torch.logsumexp(torch.where(keep, -F.softplus(margin), float("-inf")), 1) - keep.sum(1).double().log()
+            logp = torch.where(q < 0.5, torch.log1p(-q), lme)
             probs = (F.softmax(z, 2) * keep[..., None]).sum(1)
             loss.append(-logp)
             correct.append(probs.argmax(1) == y[i:i + 4096])
