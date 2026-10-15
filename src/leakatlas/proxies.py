@@ -139,8 +139,10 @@ def subgroups(df: pl.DataFrame, n_boot: int = 2000) -> pl.DataFrame:
 
 
 def _order(df):
+    """Deterministic row order (group_by output order is not guaranteed), so reruns are byte-identical."""
+    ties = [c for c in ("proxy", "attribute", "group") if c in df.columns]
     return df.with_columns(pl.col("defense").replace_strict({d: i for i, d in enumerate(DEFENSE_ORDER)}).alias("_o")
-                           ).sort("dataset", "train_size", "_o").drop("_o")
+                           ).sort(["dataset", "train_size", "_o", *ties]).drop("_o")
 
 
 def _md(df: pl.DataFrame, fmt: dict | None = None) -> str:
