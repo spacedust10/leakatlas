@@ -53,3 +53,29 @@ Reusable ideas, verified in the code:
 - Mechanism (README + notebook): split the training set into **K disjoint subsets**, train one model per subset, and at query time an **exclusion oracle** drops the sub-model(s) whose subset contains the query; the remaining models' outputs are aggregated.
 - Oracles named in the README: **EO2-ESE** (exact signature, a hash of the input), **EO3-ASE** (approximate signature, perceptual image hash), **EO4-MCE** (model-confidence based), **EO5-COE** (collusion-based).
 - **Plan:** implement **ESE** (exact hash, so it works for tabular and image data with no new dependency). ASE needs `imagehash` (a new dependency); MCE and COE are out of scope unless you ask.
+
+## 4. Datasets
+
+| | Adult | Fashion-MNIST |
+|---|---|---|
+| Source | UCI ML Repository id 2, `archive.ics.uci.edu/static/public/2/adult.zip` (Becker & Kohavi 1996) | Zalando Research via `torchvision.datasets.FashionMNIST` (Xiao, Rasul, Vollgraf 2017) |
+| License | CC BY 4.0 | MIT |
+| Version / hash | sha256 of zip `7537312dd56c2b98…` (`adult.data` + `adult.test`) | sha256 of the 4 raw `.gz` files `e71a29c25d6786b8…` |
+| Records | 48,842 → **45,222** after dropping rows containing `?` (the standard count) | **70,000** (train + test pooled; we make our own splits) |
+| Preprocessing | strip whitespace; label `income ∈ {>50K, >50K.}` = 1 (24.8% positive); z-score 6 numeric columns; one-hot 8 categorical columns → **104 features**. Sex and race stay as model inputs, as in standard Adult usage. | scale to [0,1], normalise mean 0.2860 / std 0.3530; 10 balanced classes |
+| Subgroups | sex (M 30,527 / F 14,695); race (White 38,903, Black 4,228, Asian-Pac-Islander 1,303, **Amer-Indian-Eskimo 435, Other 353**); age band (<30, 30–44, 45–59, 60+ with 3,246) | class name (for the gallery) |
+
+The two smallest race groups will produce wide bootstrap CIs; the subgroup views will show their n.
+
+## 5. Timing benchmark (`scripts/bench_training.py` → `docs/bench_training.jsonl`)
+
+Apple M3 Pro, torch 2.14.1, Opacus 1.6.0. No CUDA; MPS (Apple GPU, part of the standard macOS wheel) available. Mean of 3 epochs after warm-up.
+
+| Dataset (train size) | Device | s / epoch, standard | s / epoch, DP-SGD (Opacus) | per-sample grad-norm pass over 2N records (torch.func) |
+|---|---|---|---|---|
+| Adult MLP (10k) | **CPU** | **0.032** | **0.354** | 0.66 s |
+| Adult MLP (10k) | MPS | 0.056 | 0.750 | 1.75 s |
+| F-MNIST CNN (15k) | CPU | 2.553 | 4.926 | 10.3 s |
+| F-MNIST CNN (15k) | **MPS** | **0.701** | **4.544** | 6.15 s |
+
+The tiny MLP is faster on CPU (kernel-launch overhead dominates on MPS). The CNN is 3.6× faster on MPS for standard training, but DP-SGD gains little because Opacus's per-sample-gradient hooks dominate.
