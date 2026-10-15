@@ -1,0 +1,4 @@
+{"dataset": "adult", "device": "cpu", "train_size": 10000, "batch": 256, "sec_per_epoch_std": 0.032, "sec_grad_norm_pass_2N": 0.662, "sec_per_epoch_dp": 0.354}
+{"dataset": "adult", "device": "mps", "train_size": 10000, "batch": 256, "sec_per_epoch_std": 0.056, "sec_grad_norm_pass_2N": 1.754, "sec_per_epoch_dp": 0.75}
+{"dataset": "fmnist", "device": "cpu", "train_size": 15000, "batch": 128, "sec_per_epoch_std": 2.553, "sec_grad_norm_pass_2N": 10.275, "sec_per_epoch_dp": 4.926}
+{"dataset": "fmnist", "device": "mps", "train_size": 15000, "batch": 128, "sec_per_epoch_std": 0.701, "sec_grad_norm_pass_2N": 6.15, "sec_per_epoch_dp": 4.544}
