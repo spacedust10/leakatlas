@@ -98,3 +98,14 @@ def model_level(con) -> pl.DataFrame:
             r = stats.spearmanr(g["loss_ratio"].to_numpy(), g[metric].to_numpy())
             rows.append({"scope": name, "metric": metric, "n_runs": len(g), "spearman": r.statistic, "p": r.pvalue})
     return pl.DataFrame(rows)
+
+
+def stability(df: pl.DataFrame) -> pl.DataFrame:
+    """Per training record: number of seeds (of 3) in which it is flagged; observed vs independent-chance."""
+    per_rec = df.group_by(CELL + ["record_id"]).agg(pl.col("flag").sum().alias("k"))
+    rate = df.group_by(CELL + ["seed"]).agg(pl.col("flag").mean().alias("p"))
+    chance = rate.group_by(CELL).agg(pl.col("p").product().alias("chance_3of3_rate"))
+    out = per_rec.group_by(CELL).agg([(pl.col("k") == i).sum().alias(f"flagged_{i}of3") for i in range(4)])
+    n = pl.sum_horizontal(f"flagged_{i}of3" for i in range(4))
+    return out.join(chance, on=CELL).with_columns(
+        (pl.col("chance_3of3_rate") * n).alias("expected_3of3_if_independent"))
