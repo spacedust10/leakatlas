@@ -83,12 +83,12 @@ Dashboard views are addressable by URL, e.g. `/viewer?dataset=adult&defense=dp&e
 | — | `results/config_table.md` | privacy (AUC, TPR@0.1%/1% FPR, reference-calibrated TPR + realized FPR), utility, cost per configuration |
 | — | `results/phase3_*.md` | proxy evaluation, model-level loss ratio vs TPR, stability, subgroup gaps |
 | — | `results/figures/viewer_01_record_atlas.png` | Record Atlas: gradient norm vs attack score, flags across seeds |
-| — | `results/figures/viewer_02_log_roc.png` | Log-log ROC per defense with seed bands |
-| — | `results/figures/viewer_03_subgroup_ridgelines_adult.png` | Subgroup score distributions + flag-rate CIs |
-| — | `results/figures/viewer_04_proxy_vs_truth.png` | Per-record proxy density and model-level scatter |
-| — | `results/figures/viewer_05_stability_strip.png` | Records by number of seeds that flag them |
-| — | `results/figures/viewer_06_record_inspector*.png` | Record cards (Fashion-MNIST and Adult) |
-| — | `results/figures/viewer_07_defense_tradeoff.png` | Accuracy vs TPR@FPR, Pareto front, cost |
+| — | `results/figures/viewer_02_stability_strip.png` | Records by number of seeds that flag them |
+| — | `results/figures/viewer_03_record_inspector*.png` | Record cards (Fashion-MNIST and Adult) |
+| — | `results/figures/viewer_04_log_roc.png` | Log-log ROC per defense with seed bands |
+| — | `results/figures/viewer_05_defense_tradeoff.png` | Accuracy vs TPR@FPR, Pareto front, cost |
+| — | `results/figures/viewer_06_proxy_vs_truth.png` | Per-record proxy density and model-level scatter |
+| — | `results/figures/viewer_07_subgroup_ridgelines_adult.png` | Subgroup score distributions + flag-rate CIs |
 
 ## Repository layout
 
