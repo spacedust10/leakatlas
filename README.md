@@ -75,3 +75,32 @@ The datasets are downloaded on first use into `data/raw/` (gitignored).
 | `make test` | Check the underflow-free gradient-norm computation against float64 autograd. | ≈ 1 min |
 
 Dashboard views are addressable by URL, e.g. `/viewer?dataset=adult&defense=dp&eps=4&seed=all&fpr=0.01&record=6620`.
+
+## Config → results → figures
+
+| Config | Produces | Shown in |
+|---|---|---|
+| `configs/adult.yaml`: S ∈ {2,000, 10,000}, 16 reference models, 6 defenses × 3 seeds | 36 target runs, 432,000 record rows | All views with `dataset=adult`; subgroup ridgelines (view 3) are Adult-only |
+| `configs/fmnist.yaml`: S ∈ {5,000, 15,000}, 8 reference models, 6 defenses × 3 seeds | 36 target runs, 720,000 record rows | All views with `dataset=fmnist`; image record cards (view 6) |
+| — | `results/config_table.md` | privacy (AUC, TPR@0.1%/1% FPR, reference-calibrated TPR + realized FPR), utility, cost per configuration |
+| — | `results/phase3_*.md` | proxy evaluation, model-level loss ratio vs TPR, stability, subgroup gaps |
+| — | `results/figures/viewer_01_record_atlas.png` | Record Atlas: gradient norm vs attack score, flags across seeds |
+| — | `results/figures/viewer_02_log_roc.png` | Log-log ROC per defense with seed bands |
+| — | `results/figures/viewer_03_subgroup_ridgelines_adult.png` | Subgroup score distributions + flag-rate CIs |
+| — | `results/figures/viewer_04_proxy_vs_truth.png` | Per-record proxy density and model-level scatter |
+| — | `results/figures/viewer_05_stability_strip.png` | Records by number of seeds that flag them |
+| — | `results/figures/viewer_06_record_inspector*.png` | Record cards (Fashion-MNIST and Adult) |
+| — | `results/figures/viewer_07_defense_tradeoff.png` | Accuracy vs TPR@FPR, Pareto front, cost |
+
+## Repository layout
+
+```
+src/leakatlas/{data,models,defenses,attacks,proxies,store,analysis,viewer,theme}.py
+configs/            experiment matrices (YAML)
+data/               DuckDB, model cache, raw data (gitignored)
+results/            summary.md, tables, figures
+docs/               tool notes, architecture, design principles
+scripts/            timing benchmark, screenshot capture
+tests/              gradient-norm check
+third_party/ml_privacy_meter   pinned submodule (e384af8)
+```
