@@ -20,28 +20,59 @@ ACCENT = "#ff7a45"     # AT RISK only. dataviz validator: worst CVD dE 11.7 vs t
 # cividis from step 91: the first step at >= 3:1 on SURFACE (its dark blues vanish on near-black)
 SEQ = cividis(256)[91:]
 DENSITY = ["#1b1e25", "#2c313b", "#4a505c", "#7d8491"]  # record-density raster, faint -> dense
-FONT = "Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+# Fira Sans for prose, Fira Code for numbers/labels (tabular figures). System fallbacks keep it offline-safe.
+FONT = "'Fira Sans', -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+MONO = "'Fira Code', ui-monospace, 'SF Mono', Menlo, monospace"
+FONT_IMPORT = ("@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600"
+               "&family=Fira+Sans:wght@400;500;600;700&display=swap');")
 
 DEFENSE_LABEL = {
     "baseline": "Undefended (overfit)", "aof": "Anti-overfitting", "dp_eps1": "DP-SGD ε=1",
     "dp_eps4": "DP-SGD ε=4", "dp_eps8": "DP-SGD ε=8", "miashield": "MIAShield",
 }
 
-CSS = f"""
-:root {{ --surface:{SURFACE}; --ink:{INK}; --ink2:{INK_2}; --muted:{MUTED}; --rule:{RULE}; --accent:{ACCENT}; }}
-body, .bk-root, .pn-wrapper {{ background:{SURFACE}; color:{INK}; font-family:{FONT}; }}
-.la-masthead h1 {{ font-size:28px; font-weight:700; letter-spacing:-0.01em; margin:0 0 4px 0; color:{INK}; }}
-.la-masthead p {{ font-size:14px; color:{INK_2}; margin:0; max-width:980px; line-height:1.45; }}
-.la-view {{ border-top:1px solid {RULE}; padding-top:14px; margin-top:22px; }}
-.la-kicker {{ font-size:11px; font-weight:650; letter-spacing:0.08em; text-transform:uppercase; color:{MUTED}; margin:0; }}
-.la-takeaway {{ font-size:20px; font-weight:650; line-height:1.3; color:{INK}; margin:2px 0 4px 0; max-width:1100px; }}
-.la-takeaway em {{ font-style:normal; color:{ACCENT}; }}
-.la-note {{ font-size:12px; color:{INK_2}; margin:0 0 8px 0; max-width:1100px; line-height:1.45; }}
+CSS = FONT_IMPORT + f"""
+:root {{ --surface:{SURFACE}; --panel:{PANEL}; --ink:{INK}; --ink2:{INK_2}; --muted:{MUTED}; --rule:{RULE};
+        --accent:{ACCENT}; --font:{FONT}; --mono:{MONO}; }}
+body, .bk-root, .pn-wrapper {{ background:{SURFACE}; color:{INK}; font-family:{FONT}; font-size:15px; }}
+@media (prefers-reduced-motion: reduce) {{ * {{ transition:none !important; animation:none !important; }} }}
+
+/* type scale 11 / 12 / 13 / 15 / 19 / 26 */
+.la-brand {{ font-family:{MONO}; font-size:26px; font-weight:600; letter-spacing:-0.02em; color:{INK}; margin:0; }}
+.la-brand b {{ color:{ACCENT}; font-weight:600; }}
+.la-thesis {{ font-size:13px; line-height:1.5; color:{INK_2}; margin:6px 0 0 0; }}
+.la-label {{ font-family:{MONO}; font-size:11px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase;
+            color:{MUTED}; margin:18px 0 6px 0; }}
+.la-kicker {{ font-family:{MONO}; font-size:12px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase;
+             color:{MUTED}; margin:0; }}
+.la-kicker b {{ color:{ACCENT}; font-weight:600; margin-right:8px; }}
+.la-takeaway {{ font-size:19px; font-weight:600; line-height:1.35; color:{INK}; margin:4px 0 6px 0; max-width:72ch; }}
+.la-takeaway em {{ font-style:normal; color:{ACCENT}; font-family:{MONO}; }}
+.la-note {{ font-size:12px; color:{INK_2}; margin:0 0 10px 0; max-width:96ch; line-height:1.5; }}
+
+/* verdict ledger: one typographic line of facts, not tiles */
+.la-ledger {{ font-family:{MONO}; font-size:13px; color:{INK_2}; line-height:1.9; border-top:1px solid {RULE};
+             border-bottom:1px solid {RULE}; padding:8px 0; margin:0; }}
+.la-ledger b {{ color:{INK}; font-weight:600; }}
+.la-ledger .risk {{ color:{ACCENT}; font-weight:600; }}
+.la-ledger .sep {{ color:{GHOST}; margin:0 10px; }}
+
+/* section index */
+.la-index a {{ display:block; font-family:{MONO}; font-size:12px; color:{INK_2}; text-decoration:none; padding:5px 8px;
+              border-left:2px solid transparent; transition:color .15s ease-out, border-color .15s ease-out; }}
+.la-index a:hover, .la-index a:focus-visible {{ color:{INK}; border-left-color:{ACCENT}; outline:none; }}
+.la-index a span {{ color:{MUTED}; margin-right:8px; }}
+
+/* case file (selected record) */
+.la-case {{ font-size:12px; color:{INK_2}; line-height:1.55; border:1px solid {RULE}; border-radius:6px; padding:10px; }}
+.la-case b {{ color:{INK}; font-family:{MONO}; }}
+.la-case .risk {{ color:{ACCENT}; font-weight:600; }}
+
 .la-card {{ font-size:13px; color:{INK}; line-height:1.5; }}
-.la-card table {{ border-collapse:collapse; }}
-.la-card td {{ padding:1px 10px 1px 0; border-bottom:1px solid {RULE}; }}
-.la-card td:first-child {{ color:{INK_2}; }}
-.la-risk {{ color:{ACCENT}; font-weight:650; }}
+.la-card table {{ border-collapse:collapse; font-family:{MONO}; font-size:12px; }}
+.la-card td {{ padding:2px 12px 2px 0; border-bottom:1px solid {RULE}; }}
+.la-card td:first-child {{ color:{MUTED}; }}
+.la-risk {{ color:{ACCENT}; font-weight:600; }}
 """
 
 
@@ -79,7 +110,7 @@ def style_bokeh(plot, element) -> None:
         ax.axis_label_text_font_style = "normal"
         ax.major_label_text_color = INK_2
         ax.axis_label_text_font = FONT
-        ax.major_label_text_font = FONT
+        ax.major_label_text_font = MONO
     for g in p.grid:
         g.grid_line_color = RULE
         g.grid_line_dash = []
