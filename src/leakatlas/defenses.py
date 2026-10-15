@@ -162,7 +162,9 @@ def train_one(name: str, p: dict, d: Dataset, idx: np.ndarray, split: Split, cfg
                 opt.zero_grad()
                 F.cross_entropy(model(xb.to(dev)), yb.to(dev)).backward()
                 opt.step()
-        return model._module, {"epochs_run": p["epochs"], "eps_spent": engine.get_epsilon(delta),
+        eps_spent = engine.get_epsilon(delta)
+        model._close()  # strip Opacus grad-sample hooks so the plain module works with torch.func
+        return model._module, {"epochs_run": p["epochs"], "eps_spent": eps_spent,
                                "delta": delta, "noise_multiplier": opt.noise_multiplier}
     if name == "miashield":
         parts = np.array_split(np.random.default_rng(seed).permutation(len(idx)), p["k"])
