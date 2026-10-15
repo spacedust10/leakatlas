@@ -631,4 +631,9 @@ def build():
         styles={"max-width": "1280px", "margin": "0 auto", "padding": "24px 28px"})
 
 
-build().servable(title="LeakAtlas")
+if pn.state.location is not None:  # shareable, reproducible views: every control (and the selection) lives in the URL
+    pn.state.location.sync(S, {c: c for c in CTRL + ["attribute"]})
+app = build()
+if (rid := pn.state.session_args.get("record")) is not None:  # e.g. ?record=698 opens that record's card
+    S.selected = [int(rid[0])]
+app.servable(title="LeakAtlas")
