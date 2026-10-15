@@ -1,22 +1,25 @@
 """One editorial theme for every LeakAtlas view. Rationale and sources: docs/design_principles.md.
 
-Dark ink on a warm-white surface. Exactly one accent, reserved for "at risk". Scores and flag rates use a
-truncated cividis ramp (CVD-safe, one perceptual direction). Defenses are never told apart by hue
+Forensic console: warm light ink on a near-black surface. Exactly one accent, reserved for "at risk".
+Scores and flag rates use cividis trimmed from the dark end (CVD-safe, one perceptual direction). Defenses are never told apart by hue
 (6 > the 3-hue all-pairs limit): they get small multiples and direct labels instead.
 """
 
 import holoviews as hv
 from bokeh.palettes import cividis
 
-SURFACE = "#fcfcfb"
-INK = "#16161a"
-INK_2 = "#55555e"      # secondary text, axis labels
-MUTED = "#9a9aa3"      # non-focus marks, notes
-RULE = "#e4e4e7"       # grid, dividers
-GHOST = "#d4d4d8"      # de-emphasized marks (other defenses, never-flagged density)
-ACCENT = "#c2410c"     # AT RISK only: flagged records, the FPR threshold, top-exposure call-outs
-# cividis cut at 85%: its last yellows are ~1.2:1 on SURFACE (validator WARN), too faint for marks
-SEQ = cividis(256)[: int(256 * 0.85)]
+# Contrast on SURFACE (WCAG): INK 15.2:1, INK_2 8.4:1, MUTED 4.1:1, ACCENT 7.3:1.
+SURFACE = "#0f1115"    # page and plot background
+PANEL = "#15181e"      # raised panels (sidebar, view cards)
+INK = "#e9e6df"        # primary text, emphasized marks
+INK_2 = "#a7adb8"      # secondary text, axis labels
+MUTED = "#6f7682"      # non-focus marks, notes
+RULE = "#262a33"       # grid, dividers
+GHOST = "#3a3f4b"      # de-emphasized marks (other defenses, bands)
+ACCENT = "#ff7a45"     # AT RISK only. dataviz validator: worst CVD dE 11.7 vs the cividis anchors on SURFACE
+# cividis from step 91: the first step at >= 3:1 on SURFACE (its dark blues vanish on near-black)
+SEQ = cividis(256)[91:]
+DENSITY = ["#1b1e25", "#2c313b", "#4a505c", "#7d8491"]  # record-density raster, faint -> dense
 FONT = "Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"
 
 DEFENSE_LABEL = {

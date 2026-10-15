@@ -31,7 +31,7 @@ from leakatlas.proxies import VIEW
 from leakatlas.store import FPR_GRID, connect
 
 hv.extension("bokeh")
-pn.extension(raw_css=[theme.CSS], design="native", sizing_mode="stretch_width")
+pn.extension(raw_css=[theme.CSS], design="native", theme="dark", sizing_mode="stretch_width")
 pn.pane.HoloViews.param.linked_axes.default = False  # panes share dim names; never link their axes
 theme.plot_defaults()
 HOOKS = [theme.style_bokeh]
@@ -215,7 +215,7 @@ def atlas_panel(member: bool):
     base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), member), ["gn10", "st"]),
                          streams=[params])
     density = rasterize(base, aggregator=ds.count(), width=420, height=300).opts(
-        cmap=["#ececee", "#c9c9cf", "#9a9aa3", "#55555e"], cnorm="eq_hist", colorbar=False, alpha=0.9,
+        cmap=theme.DENSITY, cnorm="eq_hist", colorbar=False, alpha=0.9,
         tools=["box_select", "tap"], active_tools=["box_select"], hooks=HOOKS, height=360, responsive=True,
         xlabel="Proxy A: gradient norm at final epoch (log10)", ylabel=SCORE_LABEL, yticks=SCORE_TICKS,
         title=("Training records (members)" if member else "Held-out records (non-members)"), ylim=(-0.1, 4.1))
@@ -457,7 +457,7 @@ def neighbors(rid, k=5):
 def image(rid, title, w=150):
     d = dataset_obj("fmnist")
     img = (d.x[rid, 0].numpy() * FMNIST_STD + FMNIST_MEAN)[::-1]
-    return hv.Image(img, bounds=(0, 0, 28, 28)).opts(cmap="gray_r", xaxis=None, yaxis=None, frame_width=w,
+    return hv.Image(img, bounds=(0, 0, 28, 28)).opts(cmap="gray", xaxis=None, yaxis=None, frame_width=w,
                                                       frame_height=w, title=title, toolbar=None, fontsize={"title": 9})
 
 
