@@ -109,3 +109,29 @@ def stability(df: pl.DataFrame) -> pl.DataFrame:
     n = pl.sum_horizontal(f"flagged_{i}of3" for i in range(4))
     return out.join(chance, on=CELL).with_columns(
         (pl.col("chance_3of3_rate") * n).alias("expected_3of3_if_independent"))
+
+
+def subgroups(df: pl.DataFrame, n_boot: int = 2000) -> pl.DataFrame:
+    """Adult: per-record flag rate (mean over seeds) per subgroup with 95% BCa bootstrap CI, plus the
+    max-min gap between groups of each attribute with a percentile bootstrap CI."""
+    adult = df.filter(pl.col("dataset") == "adult")
+    per_rec = adult.group_by(CELL + ["record_id"] + SUBGROUPS).agg(
+        pl.col("flag").mean().alias("rate"), pl.col("score_rmia").median().alias("score"))
+    rng = np.random.default_rng(0)
+    rows = []
+    for key, cell in per_rec.group_by(CELL, maintain_order=True):
+        for attr in SUBGROUPS:
+            groups = {g: c["rate"].to_numpy() for (g,), c in cell.group_by(attr)}
+            groups = {g: v for g, v in groups.items() if len(v) >= 20}
+            means = {g: v.mean() for g, v in groups.items()}
+            gap = stats.bootstrap(tuple(groups.values()), lambda *gs, axis=-1: np.ptp([g.mean(axis) for g in gs], axis=0),
+                                  n_resamples=n_boot, method="percentile", random_state=rng, vectorized=True)
+            for g, v in groups.items():
+                ci = (stats.bootstrap((v,), np.mean, n_resamples=n_boot, random_state=rng).confidence_interval
+                      if v.std() > 0 else (v.mean(), v.mean()))
+                rows.append(dict(zip(CELL, key)) | {
+                    "attribute": attr, "group": g, "n": len(v), "flag_rate": means[g], "ci_lo": ci[0], "ci_hi": ci[1],
+                    "median_score": float(np.median(cell.filter(pl.col(attr) == g)["score"].to_numpy())),
+                    "gap": float(np.ptp(list(means.values()))), "gap_lo": gap.confidence_interval[0],
+                    "gap_hi": gap.confidence_interval[1]})
+    return pl.DataFrame(rows)
