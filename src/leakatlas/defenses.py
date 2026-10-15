@@ -126,4 +126,24 @@ def train_one(name: str, p: dict, d: Dataset, idx: np.ndarray, split: Split, cfg
         val = (d.x[split.val], d.y[split.val])
         return _sgd_train(new(), x, y, p["epochs"], lr, bs, dev, seed, p["weight_decay"],
                           p["label_smoothing"], val, p["patience"])
+    if name.startswith("dp_"):
+        g = seed_everything(seed)
+        model = new()
+        dl = DataLoader(TensorDataset(x, y), batch_size=bs, shuffle=True, generator=g)
+        engine = PrivacyEngine(accountant="rdp")
+        delta = 1.0 / len(x)
+        model, opt, dl = engine.make_private_with_epsilon(
+            module=model, optimizer=torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9),
+            data_loader=dl, target_epsilon=p["epsilon"], target_delta=delta, epochs=p["epochs"],
+            max_grad_norm=p["max_grad_norm"])
+        for _ in range(p["epochs"]):
+            model.train()
+            for xb, yb in dl:
+                if len(xb) == 0:  # Poisson sampling can yield an empty batch
+                    continue
+                opt.zero_grad()
+                F.cross_entropy(model(xb.to(dev)), yb.to(dev)).backward()
+                opt.step()
+        return model._module, {"epochs_run": p["epochs"], "eps_spent": engine.get_epsilon(delta),
+                               "delta": delta, "noise_multiplier": opt.noise_multiplier}
     raise ValueError(f"unknown defense {name}")
