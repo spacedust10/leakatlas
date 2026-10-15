@@ -656,8 +656,25 @@ def sidebar():
                              "padding": "22px 20px 28px 20px", "box-sizing": "border-box"})
 
 
+def ledger(*_):
+    """One typographic line of facts for the current configuration (deliberately not KPI tiles)."""
+    r = runs(S.dataset)
+    r = r[(r.train_size == S.size) & (r.defense == S.key)]
+    t = tpr_at(S.dataset, S.size, S.key, S.fpr).mean()
+    m = S.frame().query("member")
+    eps = "no DP" if r.eps_spent.isna().all() else f"ε spent {r.eps_spent.mean():.2f}"
+    sep = '<span class="sep">/</span>'
+    seeds = "3 seeds pooled" if S.seed == "all" else f"seed {S.seed} only"
+    return (f'<p class="la-ledger"><b>{S.dataset}</b> · {S.size:,} training records · <b>{theme.DEFENSE_LABEL[S.key]}</b>'
+            f' · {seeds}<br>RMIA finds <span class="risk">{100 * t:.1f}%</span> of members at {fmt_fpr(S.fpr)} FPR '
+            f'({t / S.fpr:.1f}× chance){sep}<span class="risk">{int((m.k == 3).sum()):,}</span> records flagged in '
+            f'every seed{sep}test accuracy <b>{100 * r.test_acc.mean():.1f}%</b>{sep}{eps}{sep}'
+            f'train <b>{r.train_sec.mean():.0f} s</b> + {r.ref_train_sec.iloc[0]:.0f} s references</p>')
+
+
 def build():
     main = pn.Column(
+        pn.pane.HTML(pn.bind(ledger, *[S.param[c] for c in CTRL]), margin=(0, 0, 8, 0)),
         section(1, "Record Atlas", atlas_takeaway,
                 "Each training record is a point: x = gradient norm at the final epoch (Proxy A), y = RMIA score. "
                 "Grey = density of all records; coloured = records flagged in ≥1 seed (colour = share of seeds), "
