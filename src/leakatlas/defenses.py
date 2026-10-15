@@ -74,3 +74,56 @@ def make_split(n: int, cfg: ExperimentConfig, size: int) -> Split:
         keep[2 * p + 1] = ~keep[2 * p]
     return Split(target[:size], target[big:big + size], shadow, keep,
                  rest[:cfg.defender_val], rest[cfg.defender_val:])
+
+
+def log_probs(model: nn.Module, x: torch.Tensor, device, bs: int = 4096) -> torch.Tensor:
+    """Served log-probabilities on CPU, applying MIAShield's oracle when present."""
+    model.eval()
+    out = []
+    with torch.no_grad():
+        for i in range(0, len(x), bs):
+            xb = x[i:i + bs]
+            if isinstance(model, MIAShield):
+                out.append(model(xb.to(device), model.oracle(xb).to(device)).cpu())
+            else:
+                out.append(F.log_softmax(model(xb.to(device)), -1).cpu())
+    return torch.cat(out)
+
+
+def _sgd_train(model, x, y, epochs, lr, bs, device, seed, weight_decay=0.0, label_smoothing=0.0,
+               val=None, patience=None):
+    g = seed_everything(seed)
+    dl = DataLoader(TensorDataset(x, y), batch_size=bs, shuffle=True, generator=g)
+    opt = torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
+    best, best_state, bad, ran = float("inf"), None, 0, 0
+    for _ in range(epochs):
+        model.train()
+        for xb, yb in dl:
+            opt.zero_grad()
+            F.cross_entropy(model(xb.to(device)), yb.to(device), label_smoothing=label_smoothing).backward()
+            opt.step()
+        ran += 1
+        if val is not None:  # early stopping on unsmoothed validation loss, restore best weights
+            vl = F.nll_loss(log_probs(model, val[0], device), val[1]).item()
+            if vl < best:
+                best, bad = vl, 0
+                best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+            elif (bad := bad + 1) >= patience:
+                break
+    if best_state is not None:
+        model.load_state_dict(best_state)
+    return model, {"epochs_run": ran}
+
+
+def train_one(name: str, p: dict, d: Dataset, idx: np.ndarray, split: Split, cfg: ExperimentConfig, seed: int):
+    dev = torch.device(cfg.device)
+    x, y = d.x[idx], d.y[idx]
+    new = lambda: build_model(d.name, d.x.shape[1], d.num_classes).to(dev)
+    lr, bs = p.get("lr", cfg.lr), cfg.batch_size
+    if name == "baseline":
+        return _sgd_train(new(), x, y, p["epochs"], lr, bs, dev, seed)
+    if name == "aof":
+        val = (d.x[split.val], d.y[split.val])
+        return _sgd_train(new(), x, y, p["epochs"], lr, bs, dev, seed, p["weight_decay"],
+                          p["label_smoothing"], val, p["patience"])
+    raise ValueError(f"unknown defense {name}")
