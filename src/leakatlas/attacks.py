@@ -34,58 +34,79 @@ log = logging.getLogger("leakatlas.attacks")
 CHUNK = 2048  # rows per run_rmia call; its [rows x population] ratio matrix is the memory peak
 
 
-def signals(model, x, y, dev):
-    """True-class prob, loss and correctness, computed in float64 from logits.
-
-    float32 log_softmax saturates to loss == 0 for confident predictions, which ties members with
-    non-members at the top of the score range and zeroes TPR at low FPR. Here
-    loss_k = softplus(logsumexp_{j!=y} z_j - z_y) per (sub-)model, and MIAShield's served loss is
-    -log(mean of kept p_k), done as a log-mean-exp.
-    """
+def _served(model, x, y, dev):
+    """Per-(sub)model float64 logits, the oracle's keep-mask and the true-class index for a batch."""
     shield = isinstance(model, MIAShield)
     subs = list(model.subs) if shield else [model]
     excl = model.oracle(x) if shield else torch.full((len(x),), -1)
-    loss, correct = [], []
-    model.eval()
     with torch.no_grad():
-        for i in range(0, len(x), 4096):
-            xb, eb = x[i:i + 4096].to(dev), excl[i:i + 4096]
-            z = torch.stack([m(xb) for m in subs], 1).cpu().double()                # [B, K, C]
-            idx = y[i:i + 4096][:, None, None].expand(-1, len(subs), 1)
-            zy = z.gather(2, idx).squeeze(2)
-            margin = torch.logsumexp(z.scatter(2, idx, float("-inf")), 2) - zy      # [B, K]
-            keep = torch.arange(len(subs))[None] != eb[:, None]
-            # q = mean over kept sub-models of (1 - p_k). -log1p(-q) is exact for tiny losses and, unlike
-            # logsumexp - log(K), has no K-dependent rounding floor (K differs: members 4, non-members 5).
-            q = (torch.sigmoid(margin) * keep).sum(1) / keep.sum(1).double()
-            lme = torch.logsumexp(torch.where(keep, -F.softplus(margin), float("-inf")), 1) - keep.sum(1).double().log()
-            logp = torch.where(q < 0.5, torch.log1p(-q), lme)
-            probs = (F.softmax(z, 2) * keep[..., None]).sum(1)
-            loss.append(-logp)
-            correct.append(probs.argmax(1) == y[i:i + 4096])
-    loss = torch.cat(loss).numpy()
-    return np.exp(-loss), loss, torch.cat(correct).numpy()
+        z = torch.stack([m(x.to(dev)) for m in subs], 1).cpu().double()            # [B, K, C]
+    keep = torch.arange(len(subs))[None] != excl[:, None]                           # [B, K]
+    return subs, z, keep, y[:, None, None].expand(-1, len(subs), 1)
+
+
+def signals(model, x, y, dev, bs=4096):
+    """True-class prob, loss, log(loss) and correctness, computed in float64 from logits.
+
+    Confident predictions underflow: float32 loss hits 0 and even float64 loss hits 0 once the
+    logit margin m = logsumexp_{j!=y} z_j - z_y drops below ~-745 (seen for Adult DP-SGD). Ties at
+    0 break rankings, so we also return log(loss), which for tiny losses equals log q with
+    q = mean_kept sigmoid(m_k) (= 1 - served p_y), computed with logsigmoid and never underflows.
+    MIAShield's served loss is -log(mean of kept p_k); -log1p(-q) avoids a K-dependent rounding floor
+    (members keep 4 sub-models, non-members 5).
+    """
+    model.eval()
+    out = {"loss": [], "log_loss": [], "correct": []}
+    for i in range(0, len(x), bs):
+        _, z, keep, idx = _served(model, x[i:i + bs], y[i:i + bs], dev)
+        margin = torch.logsumexp(z.scatter(2, idx, float("-inf")), 2) - z.gather(2, idx).squeeze(2)
+        log_k = keep.sum(1).double().log()
+        log_q = torch.logsumexp(torch.where(keep, F.logsigmoid(margin), float("-inf")), 1) - log_k
+        q = log_q.exp()
+        lme = torch.logsumexp(torch.where(keep, -F.softplus(margin), float("-inf")), 1) - log_k
+        loss = -torch.where(q < 0.5, torch.log1p(-q), lme)
+        out["loss"].append(loss)
+        out["log_loss"].append(torch.where(q < 1e-6, log_q, loss.log()))
+        out["correct"].append((F.softmax(z, 2) * keep[..., None]).sum(1).argmax(1) == y[i:i + bs])
+    loss, log_loss = torch.cat(out["loss"]).numpy(), torch.cat(out["log_loss"]).numpy()
+    return np.exp(-loss), loss, log_loss, torch.cat(out["correct"]).numpy()
 
 
 def grad_norms(model, x, y, dev, bs=512):
-    """L2 norm of each record's loss gradient w.r.t. all parameters at the final weights (Tobaben et al.)."""
+    """log L2 norm of each record's loss gradient w.r.t. all parameters at the final weights (Tobaben et al.).
+
+    Computed without underflow: for served P_y = mean_kept p_{k,y},
+        grad L = sum_k (p_{k,y} / (K' P_y)) J_k^T (p_k - e_y) = sum_k exp(a_k) J_k^T u_k
+    with unit vectors u_k and log-weights a_k in float64. With A = max a_k,
+        log||grad L|| = A + log|| grad_theta sum_k exp(a_k - A) u_k . z_k(theta) ||
+    where the surrogate's gradient is O(1), so float32 on the device is safe. K = 1 for plain models.
+    """
     model = model.to(dev).eval()
-    params = {k: v.detach() for k, v in model.named_parameters()}
-    shield = isinstance(model, MIAShield)
-    excl_all = model.oracle(x) if shield else torch.zeros(len(x), dtype=torch.long)
+    subs = list(model.subs) if isinstance(model, MIAShield) else [model]
+    params = [{k: v.detach() for k, v in m.named_parameters()} for m in subs]
 
-    def loss_one(p, xi, yi, ei):
-        if shield:
-            lp = functional_call(model, p, (xi[None], ei[None]))
-        else:
-            lp = F.log_softmax(functional_call(model, p, (xi[None],)), -1)
-        return F.nll_loss(lp, yi[None])
+    def surrogate(ps, xi, wi):  # wi: [K, C] = exp(a_k - A) * u_k
+        return sum((wi[k] * functional_call(m, p, (xi[None],))[0]).sum() for k, (m, p) in enumerate(zip(subs, ps)))
 
-    per_sample = vmap(grad(loss_one), in_dims=(None, 0, 0, 0))
+    per_sample = vmap(grad(surrogate), in_dims=(None, 0, 0))
     out = []
     for i in range(0, len(x), bs):
-        g = per_sample(params, x[i:i + bs].to(dev), y[i:i + bs].to(dev), excl_all[i:i + bs].to(dev))
-        out.append(torch.sqrt(sum((v.flatten(1) ** 2).sum(1) for v in g.values())).cpu())
+        _, z, keep, idx = _served(model, x[i:i + bs], y[i:i + bs], dev)
+        logp = torch.log_softmax(z, 2)
+        is_y = torch.zeros_like(z, dtype=torch.bool).scatter(2, idx, True)
+        lp_other = logp.masked_fill(is_y, float("-inf"))
+        lse_other = torch.logsumexp(lp_other, 2)                                    # log(1 - p_y)
+        log_v = 0.5 * torch.logaddexp(torch.logsumexp(2 * lp_other, 2), 2 * lse_other)  # log||p - e_y||
+        u = torch.where(is_y, -(lse_other - log_v).exp()[..., None], (lp_other - log_v[..., None]).exp())
+        log_py = logp.gather(2, idx).squeeze(2)
+        log_k = keep.sum(1).double().log()
+        log_P = torch.logsumexp(torch.where(keep, log_py, float("-inf")), 1) - log_k
+        a = torch.where(keep, log_py - log_k[:, None] - log_P[:, None] + log_v, float("-inf"))
+        A = a.max(1).values
+        w = ((a - A[:, None]).exp()[..., None] * u).float()
+        g = per_sample(params, x[i:i + bs].to(dev), w.to(dev))
+        sq = sum((v.flatten(1) ** 2).sum(1) for gk in g for v in gk.values())
+        out.append(A + 0.5 * sq.cpu().double().log())
     return torch.cat(out).numpy()
 
 
@@ -129,9 +150,9 @@ def audit_cell(cfg, d, size, defense, con):
     for r in range(R):
         m = load(f"ref{r}")
         for s, idx in sets.items():
-            ref[s].append(signals(m, d.x[idx], d.y[idx], dev)[:2])
-    p = {s: np.column_stack([v[0] for v in ref[s]]) for s in sets}      # true-class prob [n, R]
-    loss = {s: np.column_stack([v[1] for v in ref[s]]) for s in sets}
+            ref[s].append(signals(m, d.x[idx], d.y[idx], dev))
+    p = {s: np.column_stack([v[0] for v in ref[s]]) for s in sets}         # true-class prob [n, R]
+    log_loss = {s: np.column_stack([v[2] for v in ref[s]]) for s in sets}  # LOSS ranks by log(loss): no ties
 
     # RMIA offline_a: Privacy Meter's tuner on references only (pseudo-target = ref0, attacking its pair).
     sub = np.random.default_rng(0).permutation(len(split.shadow))[:4000]
@@ -139,7 +160,7 @@ def audit_cell(cfg, d, size, defense, con):
 
     # Pseudo-target games on the shadow pool -> thresholds.
     rmia_pseudo = np.stack([chunked_rmia(r, p["H"], p["Z"], split.ref_keep.T, k, offline_a) for r in range(R)])
-    loss_pseudo = np.stack([pm.run_loss(loss["H"][:, r]) for r in range(R)])
+    loss_pseudo = np.stack([pm.run_loss(log_loss["H"][:, r]) for r in range(R)])
     thr = {"rmia": shadow_thresholds(rmia_pseudo, split.ref_keep),
            "loss": shadow_thresholds(loss_pseudo, split.ref_keep)}
 
@@ -153,14 +174,14 @@ def audit_cell(cfg, d, size, defense, con):
         role = f"target_seed{seed}"
         m, info = load(role), meta(role)
         run_id = f"{cfg.dataset}|{defense}|S{size}|seed{seed}"
-        pt_T, loss_T, correct = signals(m, d.x[split.audit], d.y[split.audit], dev)
+        pt_T, loss_T, log_loss_T, correct = signals(m, d.x[split.audit], d.y[split.audit], dev)
         pt_Z = signals(m, d.x[split.population], d.y[split.population], dev)[0]
         sig = np.column_stack([pt_T, pt_T, p["T"][:, sel]])
         mem = np.zeros(sig.shape, bool)
         mem[:, 3::2] = True  # mark the second model of each pair as "IN" so exactly k OUT refs are used
         s_rmia = chunked_rmia(0, sig, np.column_stack([pt_Z, pt_Z, p["Z"][:, sel]]), mem, k, offline_a)
-        s_loss = pm.run_loss(loss_T)
-        gn = grad_norms(m, d.x[split.audit], d.y[split.audit], dev)
+        s_loss = pm.run_loss(log_loss_T)
+        log_gn = grad_norms(m, d.x[split.audit], d.y[split.audit], dev)
 
         eps = cfg.defenses[defense].get("epsilon")
         runs.append(RunRow(
@@ -175,7 +196,8 @@ def audit_cell(cfg, d, size, defense, con):
         thr_rows += [(run_id, a, f, t) for a in thr for f, t in thr[a].items()]
         score_frames.append(pl.DataFrame({
             "run_id": run_id, "record_id": split.audit.astype(np.int64), "member": member, "loss": loss_T,
-            "p_true": pt_T, "grad_norm": gn, "score_loss": s_loss, "score_rmia": s_rmia}))
+            "log_loss": log_loss_T, "p_true": pt_T, "log_grad_norm": log_gn, "score_loss": s_loss,
+            "score_rmia": s_rmia}))
         run_ids.append(run_id)
     replace_cell(con, run_ids, runs, attacks,
                  pl.DataFrame(thr_rows, schema=["run_id", "attack", "fpr", "threshold"], orient="row"),

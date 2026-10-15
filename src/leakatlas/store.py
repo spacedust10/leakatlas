@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS attack_results (run_id VARCHAR, attack VARCHAR, auc D
     tpr_at_1 DOUBLE, shadow_tpr_at_1 DOUBLE, shadow_fpr_at_1 DOUBLE);
 CREATE TABLE IF NOT EXISTS thresholds (run_id VARCHAR, attack VARCHAR, fpr DOUBLE, threshold DOUBLE);
 CREATE TABLE IF NOT EXISTS record_scores (run_id VARCHAR, record_id BIGINT, member BOOLEAN, loss DOUBLE,
-    p_true DOUBLE, grad_norm DOUBLE, score_loss DOUBLE, score_rmia DOUBLE);
+    log_loss DOUBLE, p_true DOUBLE, log_grad_norm DOUBLE, score_loss DOUBLE, score_rmia DOUBLE);
 """
 
 
