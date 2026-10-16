@@ -73,6 +73,8 @@ The datasets are downloaded on first use into `data/raw/` (gitignored).
 | `make test` | Check the underflow-free gradient-norm computation against float64 autograd. | ≈ 1 min |
 
 Dashboard views are addressable by URL, e.g. `/viewer?dataset=adult&defense=dp&eps=4&seed=all&fpr=0.01&record=6620`.
+Add `&theme=light` for light mode (or use the sidebar toggle). A collapsible primer and a note on every view
+explain what each chart shows and why it matters for privacy.
 
 ## Config → results → figures
 
