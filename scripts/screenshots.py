@@ -72,6 +72,10 @@ def main():
             page.goto(f"http://localhost:{PORT}/viewer?{states['fmnist']}", wait_until="networkidle", timeout=180_000)
             page.wait_for_timeout(12_000)
             page.screenshot(path=str(OUT / "viewer_full_page.png"), full_page=True)
+            page.goto(f"http://localhost:{PORT}/viewer?{states['fmnist']}&theme=light", wait_until="networkidle",
+                      timeout=180_000)
+            page.wait_for_timeout(12_000)
+            page.screenshot(path=str(OUT / "viewer_full_page_light.png"), full_page=True)
             browser.close()
     finally:
         server.terminate()
