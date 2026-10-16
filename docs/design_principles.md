@@ -65,14 +65,22 @@ palette and KPI cards were rejected as generic and against the brief) gives the 
 - **Quiet chrome**: plot toolbars appear on hover only; 150 ms colour transitions, none under
   `prefers-reduced-motion`; visible focus states on the index.
 
+- **Light and dark modes**: `?theme=light|dark` or the sidebar toggle. Colours come from a per-session
+  `Palette` (module state is shared by every browser session); page CSS reads it through custom
+  properties that inherit into Panel's shadow roots.
+- **Explained, not just shown**: a collapsible membership-inference primer above the views, and on every
+  view a note in three parts (what it shows, how to read it, why it matters for privacy). The notes avoid
+  hard-coded numbers because the live takeaway above each view already states them. Section titles carry
+  no numbers; the sidebar index handles navigation.
+
 ## The rules the code enforces (`src/leakatlas/theme.py`)
 
 | Rule | Implementation |
 |---|---|
-| One accent, reserved for "at risk" | `#ff7a45` on the dark surface. Used only for flagged records, the FPR threshold and call-outs. Re-validated for dark mode with the dataviz skill's `validate_palette.js`: worst CVD ΔE 11.7 vs the cividis anchors (≥ 8 target); 7.3:1 text contrast. |
+| One accent, reserved for "at risk" | Dark `#ff7a45` / light `#c2410c`. Used only for flagged records, the FPR threshold and call-outs. Validated per mode with the dataviz skill's `validate_palette.js`: worst CVD ΔE 11.7 (dark) and 11.5 (light) vs the cividis anchors (≥ 8 target); text contrast 7.3:1 and 4.7:1. |
 | Sequential = one CVD-safe ramp | cividis from step 91 of 256, the first step at ≥ 3:1 on the near-black surface (its dark blues vanish there). Used for scores / flag-rate across seeds. |
 | No categorical hue per defense | 6 defenses exceed the 3-hue all-pairs limit, so defenses are separated by **small multiples and direct labels**, never by color. |
-| Neutrals carry everything else | surface `#0f1115`, card `#15181e`, ink `#e9e6df` (15.2:1), secondary `#a7adb8` (8.4:1), muted `#6f7682` (4.1:1), rules `#262a33`. |
+| Neutrals carry everything else | Dark: surface `#0f1115`, card `#15181e`, ink `#e9e6df` (15.2:1), secondary `#a7adb8` (8.4:1), muted `#6f7682` (4.1:1). Light: surface `#f4f3ef`, card `#fbfbf9`, ink `#16161a` (16.3:1), secondary `#4a4a52` (7.9:1), muted `#6b6b74` (4.8:1). |
 | Text never wears a series color | Labels are ink/secondary; marks carry the color. |
 | No dual axes, no pies, no KPI tiles, no rainbow, no unlabeled legends | Enforced by construction: every plot has one y-scale; the brief's "flag-rate overlay" is an aligned separate column, not a second axis. |
 | Honest axes | Rates start at 0; log axes are labelled "(log10)"; ROC shows the chance diagonal. |
