@@ -714,7 +714,7 @@ if (target) target.scrollIntoView({behavior: still ? 'auto' : 'smooth', block: '
 """
 INDEX_CSS = f"""
 .bk-btn {{ background: transparent !important; border: none; border-left: 2px solid transparent; border-radius: 0;
-          color: var(--ink2); font-family: {theme.MONO}; font-size: 12px; text-align: left; padding: 5px 8px;
+          color: var(--ink2); font-family: {theme.FONT}; font-size: 13px; text-align: left; padding: 5px 8px;
           min-height: 28px; cursor: pointer; transition: color .15s ease-out, border-color .15s ease-out; }}
 .bk-btn:hover, .bk-btn:focus-visible {{ color: var(--ink); border-left-color: var(--accent); outline: none; }}
 """

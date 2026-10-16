@@ -53,11 +53,12 @@ def css_vars(p: Palette) -> dict:
             "--rule": p.RULE, "--ghost": p.GHOST, "--accent": p.ACCENT, "background": p.SURFACE}
 
 
-# Fira Sans for prose, Fira Code for numbers/labels (tabular figures). System fallbacks keep it offline-safe.
-FONT = "'Fira Sans', -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"
-MONO = "'Fira Code', ui-monospace, 'SF Mono', Menlo, monospace"
-FONT_IMPORT = ("@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600"
-               "&family=Fira+Sans:wght@400;500;600;700&display=swap');")
+# DM Sans for text and numbers (tabular figures), Space Grotesk for headlines: a product feel rather than
+# a paper. Picked from the UI/UX Pro Max typography set ("Tech Startup"). System fallbacks keep it offline-safe.
+FONT = "'DM Sans', -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+HEAD = "'Space Grotesk', 'DM Sans', -apple-system, 'Helvetica Neue', Arial, sans-serif"
+FONT_IMPORT = ("@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600"
+               "&family=Space+Grotesk:wght@500;600&display=swap');")
 
 DEFENSE_LABEL = {
     "baseline": "Undefended (overfit)", "aof": "Anti-overfitting", "dp_eps1": "DP-SGD ε=1",
@@ -65,25 +66,25 @@ DEFENSE_LABEL = {
 }
 
 CSS = FONT_IMPORT + f"""
-body, .bk-root, .pn-wrapper {{ font-family:{FONT}; font-size:15px; }}
+body, .bk-root, .pn-wrapper {{ font-family:{FONT}; font-size:15px; font-variant-numeric:tabular-nums; }}
 @media (prefers-reduced-motion: reduce) {{ * {{ transition:none !important; animation:none !important; }} }}
 
 /* type scale 11 / 12 / 13 / 15 / 19 / 26 */
-.la-brand {{ font-family:{MONO}; font-size:26px; font-weight:600; letter-spacing:-0.02em; color:var(--ink); margin:0; }}
+.la-brand {{ font-family:{HEAD}; font-size:26px; font-weight:600; letter-spacing:-0.02em; color:var(--ink); margin:0; }}
 .la-brand b {{ color:var(--accent); font-weight:600; }}
 .la-thesis {{ font-size:13px; line-height:1.5; color:var(--ink2); margin:6px 0 0 0; }}
-.la-label {{ font-family:{MONO}; font-size:11px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase;
+.la-label {{ font-family:{FONT}; font-size:11px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase;
             color:var(--muted); margin:18px 0 6px 0; }}
-.la-kicker {{ font-family:{MONO}; font-size:12px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase;
+.la-kicker {{ font-family:{FONT}; font-size:12px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;
              color:var(--muted); margin:0; }}
-.la-takeaway {{ font-size:19px; font-weight:600; line-height:1.35; color:var(--ink); margin:4px 0 6px 0; max-width:72ch; }}
-.la-takeaway em {{ font-style:normal; color:var(--accent); font-family:{MONO}; }}
+.la-takeaway {{ font-family:{HEAD}; font-size:20px; font-weight:600; letter-spacing:-0.01em; line-height:1.35; color:var(--ink); margin:4px 0 6px 0; max-width:72ch; }}
+.la-takeaway em {{ font-style:normal; color:var(--accent); }}
 .la-view {{ background:var(--panel); border:1px solid var(--rule); border-radius:8px; padding:16px 20px 12px 20px;
             margin:0 0 16px 0; }}
 .la-note {{ font-size:12px; color:var(--ink2); margin:0 0 10px 0; max-width:96ch; line-height:1.5; }}
 
 /* verdict ledger: one typographic line of facts, not tiles */
-.la-ledger {{ font-family:{MONO}; font-size:13px; color:var(--ink2); line-height:1.9; border-top:1px solid var(--rule);
+.la-ledger {{ font-family:{FONT}; font-size:13.5px; color:var(--ink2); line-height:1.9; border-top:1px solid var(--rule);
              border-bottom:1px solid var(--rule); padding:8px 0; margin:0; }}
 .la-ledger b {{ color:var(--ink); font-weight:600; }}
 .la-ledger .risk {{ color:var(--accent); font-weight:600; }}
@@ -91,25 +92,25 @@ body, .bk-root, .pn-wrapper {{ font-family:{FONT}; font-size:15px; }}
 
 /* case file (selected record) */
 .la-case {{ font-size:12px; color:var(--ink2); line-height:1.55; border:1px solid var(--rule); border-radius:6px; padding:10px; }}
-.la-case b {{ color:var(--ink); font-family:{MONO}; }}
+.la-case b {{ color:var(--ink); font-weight:600; }}
 .la-case .risk {{ color:var(--accent); font-weight:600; }}
 
 /* explanations: native <details>, keyboard-accessible, collapsible */
 .la-primer, .la-explain {{ border:1px solid var(--rule); border-radius:8px; background:var(--panel); margin:0 0 12px 0; }}
 .la-primer {{ padding:12px 18px; margin:10px 0 16px 0; }}
 .la-explain {{ padding:8px 14px; margin:2px 0 12px 0; background:transparent; }}
-.la-primer summary, .la-explain summary {{ cursor:pointer; font-family:{MONO}; font-size:12px; letter-spacing:0.04em;
+.la-primer summary, .la-explain summary {{ cursor:pointer; font-family:{FONT}; font-size:12px; letter-spacing:0.04em;
     color:var(--ink2); list-style-position:outside; }}
 .la-primer summary:focus-visible, .la-explain summary:focus-visible {{ outline:2px solid var(--accent); outline-offset:2px; }}
 .la-primer summary b {{ color:var(--ink); font-weight:600; }}
 .la-primer p, .la-explain p {{ font-size:13.5px; line-height:1.6; color:var(--ink2); margin:8px 0; max-width:96ch; }}
 .la-primer p b, .la-explain p b {{ color:var(--ink); font-weight:600; }}
-.la-explain h4 {{ font-family:{MONO}; font-size:11px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase;
+.la-explain h4 {{ font-family:{FONT}; font-size:11px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase;
     color:var(--muted); margin:12px 0 2px 0; }}
 .la-explain .privacy {{ border-left:2px solid var(--accent); padding-left:10px; }}
 
 .la-card {{ font-size:13px; color:var(--ink); line-height:1.5; }}
-.la-card table {{ border-collapse:collapse; font-family:{MONO}; font-size:12px; }}
+.la-card table {{ border-collapse:collapse; font-size:12.5px; }}
 .la-card td {{ padding:2px 12px 2px 0; border-bottom:1px solid var(--rule); }}
 .la-card td:first-child {{ color:var(--muted); }}
 .la-risk {{ color:var(--accent); font-weight:600; }}
@@ -153,12 +154,12 @@ def hook(p: Palette):
             ax.axis_label_text_font_style = "normal"
             ax.major_label_text_color = p.INK_2
             ax.axis_label_text_font = FONT
-            ax.major_label_text_font = MONO
+            ax.major_label_text_font = FONT
         for g in f.grid:
             g.grid_line_color = p.RULE
             g.grid_line_dash = []
         if f.title is not None:
             f.title.text_color = p.INK
-            f.title.text_font = FONT
+            f.title.text_font = HEAD
             f.title.text_font_style = "bold"
     return style_bokeh
