@@ -286,8 +286,9 @@ def atlas_takeaway():
 
 # ------------------------------------------------------------------------------------------ 2. Log-log ROC
 EXPLAIN["Log-scale ROC"] = [
-    'How well the attack tells members from outsiders under each defense. The dotted line is guessing.',
-    'What matters is the far left, where the attack wrongly accuses almost no one. An attacker who is nearly certain about a few people is more dangerous than one who is slightly better than chance about everyone.']
+    'Each small chart is one defense. It shows how well the attack separates training records from records the model never saw, at every possible threshold. Going up means catching more real members; going right means wrongly accusing more outsiders.',
+    'The dotted diagonal is pure guessing: an attack on that line learns nothing. Both axes are logarithmic so that the far-left corner, where the attack almost never makes a false accusation, gets the space it deserves. The labels give the share of members caught when only 0.1% and 1% of outsiders are wrongly accused, the grey band shows how much that varies between training runs, and the orange line follows the FPR control in the sidebar.',
+    'That corner is what matters for privacy. An attacker who is nearly certain about a few specific people can do real harm even if they are no better than chance about everyone else, which is why the AUC in each title is only a secondary number. A defense whose curve lies on the diagonal leaves outsiders unable to tell who was in the training data.']
 def roc_panels(**_):
     plots = []
     for d in DEFENSES:
@@ -549,8 +550,9 @@ def inspector_takeaway():
 
 # ---------------------------------------------------------------------------------- 7. Defense trade-off
 EXPLAIN["Defense trade-off"] = [
-    'Each dot is a defense. Further left leaks less, higher is more accurate, and a bigger dot costs more to train. The line joins the options that nothing else beats on both counts.',
-    'Privacy is not free. This shows what each defense costs in accuracy and compute, so the choice is made on purpose.']
+    'Each dot is one defense. Moving left means the attack catches fewer training records; moving up means the model is more accurate on new data. Bigger dots took more computing time to train, including the reference models the audit needs. The orange line marks chance: a defense sitting on it leaks no more than a coin flip would suggest.',
+    'The thin line connects the defenses that no other option beats on both privacy and accuracy at once. A defense below or to the right of that line is a worse deal than one on it. The error bars show how much each result varies across three training runs, so two dots whose bars overlap are not clearly different.',
+    'Privacy is not free. Differential privacy gives a mathematical guarantee but usually costs accuracy and a lot of compute, while anti-overfitting costs almost nothing but leaves some leakage. Which point to pick is a decision about how much risk is acceptable, and this chart puts the price of each option side by side.']
 T95 = stats.t.ppf(0.975, 2)  # 3 seeds -> 2 dof
 
 
