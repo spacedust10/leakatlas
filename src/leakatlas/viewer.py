@@ -31,9 +31,11 @@ from leakatlas.proxies import VIEW
 from leakatlas.store import FPR_GRID, connect
 
 hv.extension("bokeh")
-MODE = "dark"
+MODE = (pn.state.session_args.get("theme") or [b"dark"])[0].decode()  # ?theme=light | dark
+MODE = MODE if MODE in theme.PALETTES else "dark"
 T = theme.palette(MODE)  # per session: viewer.py re-executes for every browser session under `panel serve`
-pn.extension(raw_css=[theme.CSS], design="native", theme=MODE, sizing_mode="stretch_width")
+pn.extension(raw_css=[theme.CSS], design="native", theme="dark" if MODE == "dark" else "default",
+             sizing_mode="stretch_width")  # Panel names its light theme "default"
 pn.pane.HoloViews.param.linked_axes.default = False  # panes share dim names; never link their axes
 theme.plot_defaults()
 HOOKS = [theme.hook(T)]
@@ -649,9 +651,26 @@ def view_index():
     return pn.Column(pn.pane.HTML('<p class="la-label">Views</p>', margin=0), *buttons, margin=0)
 
 
+TOGGLE_JS = """
+const u = new URL(window.location.href);
+u.searchParams.set('theme', next);
+window.location.href = u.toString();
+"""
+
+
+def mode_toggle():
+    """Switch light/dark by reloading with ?theme=...; every other control already lives in the URL."""
+    nxt = "light" if MODE == "dark" else "dark"
+    b = pn.widgets.Button(name=f"Switch to {nxt} mode", stylesheets=[INDEX_CSS + f"""
+.bk-btn {{ border: 1px solid var(--rule) !important; border-radius: 6px; text-align: center; margin-top: 14px; }}"""],
+                          margin=0, sizing_mode="stretch_width", description=f"Reload the dashboard in {nxt} mode")
+    b.js_on_click(args={"next": nxt}, code=TOGGLE_JS)
+    return b
+
+
 def sidebar():
     case = pn.pane.HTML(pn.bind(case_file, *[S.param[c] for c in CTRL + ["selected"]]), margin=0)
-    return pn.Column(brand(), controls(), case, view_index(), sizing_mode="fixed", width=300, margin=0,
+    return pn.Column(brand(), mode_toggle(), controls(), case, view_index(), sizing_mode="fixed", width=300, margin=0,
                      styles={"position": "sticky", "top": "0", "height": "100vh", "overflow-y": "auto",
                              "background": T.PANEL, "border-right": f"1px solid {T.RULE}",
                              "padding": "22px 20px 28px 20px", "box-sizing": "border-box"})
