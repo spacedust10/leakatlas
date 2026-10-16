@@ -339,6 +339,14 @@ def roc_takeaway():
 
 
 # --------------------------------------------------------------------------------- 3. Subgroup ridgelines
+EXPLAIN["Subgroup ridgelines"] = (
+    "For Adult's census records: how the attack scores spread within each sex, race or age group (the ridges), and "
+    "what share of each group's training records is flagged (the dots), under every defense.",
+    "Dots further right mean more of that group is exposed; wider bars mean fewer people in the group and more "
+    "uncertainty. Compare the undefended panel with the defended ones to see whether a defense narrows the gaps.",
+    "Privacy risk is not shared equally. Small or atypical groups are easier to memorize, so their members can leak "
+    "more, a disparate exposure that is a fairness problem and a privacy problem at once. A defense should be judged "
+    "on whether it closes these gaps, not only on whether it lowers the average.")
 XS = np.linspace(0, 4, 200)
 
 
@@ -403,6 +411,16 @@ def ridge_takeaway():
 
 
 # ---------------------------------------------------------------------------------- 4. Proxy vs truth
+EXPLAIN["Proxy vs truth"] = (
+    "Whether a cheap number computed from the model alone predicts what the expensive attack finds. Left: each "
+    "training record's loss ratio (its loss relative to typical held-out records) against its attack score. Right: "
+    "each configuration's overall test/train loss ratio against the attack's success rate.",
+    "If a proxy works, points rise from left to right. Spearman rho measures that rank agreement: 1 is perfect, 0 "
+    "is none, and a negative value means the proxy points the wrong way.",
+    "Running a strong attack needs reference models, compute and expertise. A cheap proxy would let a compliance "
+    "reviewer triage risky models and records before release. At the model level the loss ratio does track leakage, "
+    "but per record its direction depends on the defense, so a proxy tuned on one model can point a reviewer at the "
+    "wrong people on another.")
 def proxy_density():
     params = hv.streams.Params(S, CTRL)
     base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), True), ["lr10", "st"]), streams=[params])
