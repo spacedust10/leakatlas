@@ -295,6 +295,15 @@ def atlas_takeaway():
 
 
 # ------------------------------------------------------------------------------------------ 2. Log-log ROC
+EXPLAIN["Log-scale ROC"] = (
+    "How well the attack separates training members from non-members under each defense, across every possible "
+    "threshold: TPR (members correctly caught) against FPR (non-members wrongly accused), both on log scales.",
+    "The dotted diagonal is guessing. What matters is how far the curve rises above it on the left, where false "
+    "accusations are rare. The grey band shows how much the result varies between training runs, and labels give "
+    "the TPR at 0.1% and 1% FPR.",
+    "An attacker who is almost certainly right about a few specific people is more dangerous than one who is "
+    "slightly better than chance about everyone, so the low-FPR region, not the AUC, is the headline (Carlini et "
+    "al.). A defense whose curve hugs the diagonal leaves an outsider unable to tell who was in the training data.")
 def roc_panels(**_):
     plots = []
     for d in DEFENSES:
@@ -557,6 +566,14 @@ def inspector_takeaway():
 
 
 # ---------------------------------------------------------------------------------- 7. Defense trade-off
+EXPLAIN["Defense trade-off"] = (
+    "Each defense as one point: privacy risk (the share of members the attack catches at the chosen FPR) across, "
+    "utility (test accuracy) up, and training cost as marker size.",
+    "Up and to the left is better: accurate and private. The thin line joins the Pareto front, the defenses no "
+    "other option beats on both axes at once. Error bars are 95% intervals over three training runs.",
+    "Privacy protection has a price. Differential privacy gives a mathematical guarantee but costs accuracy and the "
+    "most compute; anti-overfitting is nearly free but leaves residual leakage. Choosing a defense is a governance "
+    "decision about acceptable risk, and this chart makes the trade explicit instead of hiding it in an average.")
 T95 = stats.t.ppf(0.975, 2)  # 3 seeds -> 2 dof
 
 
