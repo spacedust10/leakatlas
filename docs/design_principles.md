@@ -68,10 +68,13 @@ palette and KPI cards were rejected as generic and against the brief) gives the 
 - **Light and dark modes**: `?theme=light|dark` or the sidebar toggle. Colours come from a per-session
   `Palette` (module state is shared by every browser session); page CSS reads it through custom
   properties that inherit into Panel's shadow roots.
-- **Explained, not just shown**: a collapsible membership-inference primer above the views, and on every
-  view a note in three parts (what it shows, how to read it, why it matters for privacy). The notes avoid
-  hard-coded numbers because the live takeaway above each view already states them. Section titles carry
-  no numbers; the sidebar index handles navigation.
+- **Explained, not just shown**: a short "How this works" primer above the views and an "About this chart"
+  note on every view, written as two plain paragraphs (what you are looking at, then why it matters for
+  privacy) with no subheadings, following the minimalist-ui copy rules. Both are borderless accordions:
+  a hairline below, a plus/minus toggle, 1.65 line height, at most 68 characters per line. Section titles
+  carry no numbers; the sidebar index handles navigation.
+- **Warm monochrome light mode** (minimalist-ui): bone `#f7f6f3` page, white cards, charcoal `#2f3437`
+  ink, `#eaeaea` rules. The guide's own `#787774` grey fails 4.5:1, so muted text uses `#6e6d69`.
 
 ## The rules the code enforces (`src/leakatlas/theme.py`)
 
@@ -85,4 +88,4 @@ palette and KPI cards were rejected as generic and against the brief) gives the 
 | No dual axes, no pies, no KPI tiles, no rainbow, no unlabeled legends | Enforced by construction: every plot has one y-scale; the brief's "flag-rate overlay" is an aligned separate column, not a second axis. |
 | Honest axes | Rates start at 0; log axes are labelled "(log10)"; ROC shows the chance diagonal. |
 | Relief for low-contrast fills | Members get a 1.5px ink ring; every view has a hover tooltip and the record table. |
-| Typography | Fira Code for numbers, labels and ticks (tabular figures); Fira Sans for prose; system fallbacks keep it offline-safe. Scale 11/12/13/15/19/26 px. |
+| Typography | Space Grotesk for headlines, the brand mark and chart titles; DM Sans for everything else, with tabular figures so numbers align without a monospace face (UI/UX Pro Max "Tech Startup" pairing). Fira Sans/Code was dropped because it read like a research paper. |
