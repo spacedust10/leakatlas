@@ -165,11 +165,25 @@ def fmt_fpr(f):
     return f"{100 * f:g}%"
 
 
+EXPLAIN = {}  # view name -> (what it shows, how to read it, why it matters for privacy)
+
+
+def explain(name):
+    what, how, why = EXPLAIN[name]
+    return pn.pane.HTML(
+        '<details class="la-explain"><summary>What this shows and why it matters for privacy</summary>'
+        f'<h4>What it shows</h4><p>{what}</p><h4>How to read it</h4><p>{how}</p>'
+        f'<h4>Why it matters for privacy</h4><p class="privacy">{why}</p></details>', margin=0)
+
+
 def section(n, name, takeaway, note, *body):
-    return pn.Column(
-        pn.pane.HTML(f'<p class="la-kicker">{name}</p>'),
-        pn.pane.HTML(pn.bind(lambda *_: f'<p class="la-takeaway">{takeaway()}</p>', *[S.param[c] for c in CTRL + ["attribute", "selected"]])),
-        pn.pane.HTML(f'<p class="la-note">{note}</p>'), *body, css_classes=["la-view", f"la-anchor-{n}"])
+    head = [pn.pane.HTML(f'<p class="la-kicker">{name}</p>'),
+            pn.pane.HTML(pn.bind(lambda *_: f'<p class="la-takeaway">{takeaway()}</p>',
+                                 *[S.param[c] for c in CTRL + ["attribute", "selected"]])),
+            pn.pane.HTML(f'<p class="la-note">{note}</p>')]
+    if name in EXPLAIN:
+        head.append(explain(name))
+    return pn.Column(*head, *body, css_classes=["la-view", f"la-anchor-{n}"])
 
 
 def select_box(member_filter=None, xcol="gn10", ycol="st", frame_fn=None):
@@ -214,6 +228,18 @@ def member_rows(df, member: bool):
 
 
 # --------------------------------------------------------------------------------- 1. Record Atlas (hero)
+EXPLAIN["Record Atlas"] = (
+    "Every training record (left) and every held-out record the model never saw (right). Height is how sure the "
+    "attack is that the record was used in training; position across is the record's gradient norm, a cheap signal "
+    "the model owner can compute without attacking. Coloured points crossed the attack's threshold in at least one "
+    "of the three training runs.",
+    "Higher means the attack is more confident the record is a member; points above the orange line are flagged. "
+    "Flags on the left are real leaks (the record really was in training). Flags on the right are false accusations. "
+    "Box-select or click a cluster to follow those records through every other view.",
+    "Each coloured point on the left is a person (Adult) or an image (Fashion-MNIST) whose presence in the training "
+    "data an outsider can detect with nothing but query access to the model. Exposure concentrates on atypical "
+    "records with large gradients: outliers and rare combinations of attributes, which in census data are often "
+    "people in small or unusual groups, the very people privacy protections are meant to cover.")
 def atlas_panel(member: bool):
     params = hv.streams.Params(S, CTRL)
     base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), member), ["gn10", "st"]),
@@ -412,6 +438,15 @@ def proxy_takeaway():
 
 
 # ---------------------------------------------------------------------------------- 5. Stability strip
+EXPLAIN["Stability strip"] = (
+    "The training records flagged at least once, sorted by how many of the three independently trained models flag "
+    "them.",
+    "Further right means a higher attack score. A record in the top row is flagged by every model and is "
+    "reproducibly exposed; a record in the bottom row was flagged by only one model and may be bad luck.",
+    "A privacy audit should not be a lottery. When the same records are flagged in every run, the leak is a "
+    "property of the record and the training recipe, so it would recur in a production model. When flags appear "
+    "only once, they are mostly noise, which is what a working defense looks like. Reporting a single run would "
+    "both overstate and misidentify who is at risk.")
 def jitter(df):
     # ponytail: seeded vertical jitter, not a packed beeswarm; swap in a packing pass if overlap hides structure
     return df.assign(yj=df.k + (np.random.default_rng(0).random(len(df)) - 0.5) * 0.7)
@@ -449,6 +484,14 @@ def stability_takeaway():
 
 
 # --------------------------------------------------------------------------------- 6. Record inspector
+EXPLAIN["Record inspector"] = (
+    "One selected record up close: the image and its nearest training neighbours (Fashion-MNIST) or its feature "
+    "values (Adult), with its attack score under each defense.",
+    "Orange rings mark the defenses under which the record is still flagged. If the record looks unlike its "
+    "neighbours, it is atypical, which is why the model memorized it.",
+    "This is the view a data-protection officer needs: who exactly is exposed, and whether a defense protects this "
+    "person rather than just the average. A defense can lower average leakage and still leave the most exposed "
+    "individuals flagged; averages hide individual harm.")
 def neighbors(rid, k=5):
     d = dataset_obj("fmnist")
     split = make_split(len(d.y), CONFIGS["fmnist"], S.size)
