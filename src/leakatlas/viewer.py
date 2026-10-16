@@ -774,8 +774,6 @@ def build():
                 "right column = flag rate with 95% percentile-bootstrap CI over records (seeds averaged per record). "
                 "Groups under 20 members are omitted. Ink ticks = selected records.",
                 pn.panel(pn.bind(ridgelines, *[S.param[c] for c in CTRL + ["attribute", "selected"]]))),
-        pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
-                     'design notes: docs/design_principles.md</p>'),
         styles={"padding": "22px 32px 40px 32px", "max-width": "1400px"}, margin=0)
     return pn.Row(sidebar(), main, sizing_mode="stretch_width", margin=0, styles=theme.css_vars(T))
 
