@@ -167,7 +167,7 @@ def fmt_fpr(f):
 
 def section(n, name, takeaway, note, *body):
     return pn.Column(
-        pn.pane.HTML(f'<p class="la-kicker">{n:02d} · {name}</p>'),
+        pn.pane.HTML(f'<p class="la-kicker">{name}</p>'),
         pn.pane.HTML(pn.bind(lambda *_: f'<p class="la-takeaway">{takeaway()}</p>', *[S.param[c] for c in CTRL + ["attribute", "selected"]])),
         pn.pane.HTML(f'<p class="la-note">{note}</p>'), *body, css_classes=["la-view", f"la-anchor-{n}"])
 
@@ -645,7 +645,7 @@ INDEX_CSS = f"""
 def view_index():
     buttons = []
     for n, name in enumerate(VIEW_NAMES, 1):
-        b = pn.widgets.Button(name=f"{n:02d}  {name}", stylesheets=[INDEX_CSS], margin=(0, 0), sizing_mode="stretch_width")
+        b = pn.widgets.Button(name=name, stylesheets=[INDEX_CSS], margin=(0, 0), sizing_mode="stretch_width")
         b.js_on_click(args={"n": n}, code=JUMP_JS)
         buttons.append(b)
     return pn.Column(pn.pane.HTML('<p class="la-label">Views</p>', margin=0), *buttons, margin=0)
