@@ -94,6 +94,20 @@ body, .bk-root, .pn-wrapper {{ font-family:{FONT}; font-size:15px; }}
 .la-case b {{ color:var(--ink); font-family:{MONO}; }}
 .la-case .risk {{ color:var(--accent); font-weight:600; }}
 
+/* explanations: native <details>, keyboard-accessible, collapsible */
+.la-primer, .la-explain {{ border:1px solid var(--rule); border-radius:8px; background:var(--panel); margin:0 0 12px 0; }}
+.la-primer {{ padding:12px 18px; margin:10px 0 16px 0; }}
+.la-explain {{ padding:8px 14px; margin:2px 0 12px 0; background:transparent; }}
+.la-primer summary, .la-explain summary {{ cursor:pointer; font-family:{MONO}; font-size:12px; letter-spacing:0.04em;
+    color:var(--ink2); list-style-position:outside; }}
+.la-primer summary:focus-visible, .la-explain summary:focus-visible {{ outline:2px solid var(--accent); outline-offset:2px; }}
+.la-primer summary b {{ color:var(--ink); font-weight:600; }}
+.la-primer p, .la-explain p {{ font-size:13.5px; line-height:1.6; color:var(--ink2); margin:8px 0; max-width:96ch; }}
+.la-primer p b, .la-explain p b {{ color:var(--ink); font-weight:600; }}
+.la-explain h4 {{ font-family:{MONO}; font-size:11px; font-weight:500; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--muted); margin:12px 0 2px 0; }}
+.la-explain .privacy {{ border-left:2px solid var(--accent); padding-left:10px; }}
+
 .la-card {{ font-size:13px; color:var(--ink); line-height:1.5; }}
 .la-card table {{ border-collapse:collapse; font-family:{MONO}; font-size:12px; }}
 .la-card td {{ padding:2px 12px 2px 0; border-bottom:1px solid var(--rule); }}

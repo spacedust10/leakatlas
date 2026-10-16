@@ -692,9 +692,34 @@ def ledger(*_):
             f'train <b>{r.train_sec.mean():.0f} s</b> + {r.ref_train_sec.iloc[0]:.0f} s references</p>')
 
 
+PRIMER = """<details class="la-primer" open><summary><b>New to membership inference?</b> A 60-second primer</summary>
+<p><b>The attack.</b> A <b>membership-inference attack</b> asks a trained model questions and decides whether one
+specific person's record was in its training data. The attacker never sees the data; it only watches how
+confidently the model answers. Models tend to be more confident on examples they were trained on, and that gap is
+the leak.</p>
+<p><b>Why it is a privacy harm.</b> Being in a dataset can itself be sensitive: a record in a census-income
+dataset (Adult) reveals that a person's income and demographics were collected and used. Membership is also the
+first step towards attribute inference and data reconstruction. NIST's adversarial machine-learning taxonomy lists
+it as a privacy attack, and auditors use it to measure how much a model leaks about the people it was trained
+on.</p>
+<p><b>How this dashboard measures it.</b> We train target models, then attack every training record with
+<b>RMIA</b>, a strong attack that compares the target against reference models trained on other data. A record
+is <b>flagged</b> when the attack calls it a member at a strict false-positive rate (FPR, 1% by default):
+at most 1 in 100 non-members is wrongly accused. <b>TPR</b> is the share of real members it catches. Every model
+is trained with 3 seeds, so a flag can be checked for luck.</p>
+<p><b>Defenses and proxies.</b> We compare an overfit baseline with anti-overfitting training, <b>DP-SGD</b>
+(differential privacy; a smaller ε is a stronger mathematical guarantee) and <b>MIAShield</b> (an ensemble that
+hides the sub-model that saw a record). We also test two cheap, attack-free <b>proxies</b>, a record's gradient
+norm and its loss ratio, to see whether a reviewer could spot risky records without running an attack.</p>
+<p><b>How to use it.</b> Pick a dataset, defense and FPR in the sidebar. Click or box-select records to follow them
+across views and pin them as a case file. Each view has a "What this shows" note explaining the chart and why it
+matters for data security and privacy.</p></details>"""
+
+
 def build():
     main = pn.Column(
         pn.pane.HTML(pn.bind(ledger, *[S.param[c] for c in CTRL]), margin=(0, 0, 8, 0)),
+        pn.pane.HTML(PRIMER, margin=0),
         section(1, "Record Atlas", atlas_takeaway,
                 "Each training record is a point: x = gradient norm at the final epoch (Proxy A), y = RMIA score. "
                 "Grey = density of all records; coloured = records flagged in ≥1 seed (colour = share of seeds), "
