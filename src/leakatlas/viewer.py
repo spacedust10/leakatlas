@@ -31,10 +31,12 @@ from leakatlas.proxies import VIEW
 from leakatlas.store import FPR_GRID, connect
 
 hv.extension("bokeh")
-pn.extension(raw_css=[theme.CSS], design="native", theme="dark", sizing_mode="stretch_width")
+MODE = "dark"
+T = theme.palette(MODE)  # per session: viewer.py re-executes for every browser session under `panel serve`
+pn.extension(raw_css=[theme.CSS], design="native", theme=MODE, sizing_mode="stretch_width")
 pn.pane.HoloViews.param.linked_axes.default = False  # panes share dim names; never link their axes
 theme.plot_defaults()
-HOOKS = [theme.style_bokeh]
+HOOKS = [theme.hook(T)]
 DEFENSES = list(theme.DEFENSE_LABEL)
 LN10 = np.log(10)
 RECORD_SQL = VIEW.split(" AS\n", 1)[1]  # record_view's SELECT, run as a subquery (dashboard is read-only)
@@ -201,7 +203,7 @@ def highlight(xcol, ycol, member_filter=None, rows=None):
             df = df[df.member == member_filter]
         if rows is not None:
             df = rows(df)
-        return hv.Points(df, [xcol, ycol]).opts(size=13, fill_alpha=0, line_color=theme.INK, line_width=2)
+        return hv.Points(df, [xcol, ycol]).opts(size=13, fill_alpha=0, line_color=T.INK, line_width=2)
     return hv.DynamicMap(draw, streams=[hv.streams.Params(S, CTRL + ["selected"])])
 
 
@@ -215,7 +217,7 @@ def atlas_panel(member: bool):
     base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), member), ["gn10", "st"]),
                          streams=[params])
     density = rasterize(base, aggregator=ds.count(), width=420, height=300).opts(
-        cmap=theme.DENSITY, cnorm="eq_hist", colorbar=False, alpha=0.9,
+        cmap=T.DENSITY, cnorm="eq_hist", colorbar=False, alpha=0.9,
         tools=["box_select", "tap"], active_tools=["box_select"], hooks=HOOKS, height=360, responsive=True,
         xlabel="Proxy A: gradient norm at final epoch (log10)", ylabel=SCORE_LABEL, yticks=SCORE_TICKS,
         title=("Training records (members)" if member else "Held-out records (non-members)"), ylim=(-0.1, 4.1))
@@ -225,15 +227,15 @@ def atlas_panel(member: bool):
         df = member_rows(S.frame(), member)
         df = df[df.k > 0]
         pts = hv.Points(df, ["gn10", "st"], ["flag_rate", "k", "record_id", "score_rmia"]).opts(
-            color="flag_rate", cmap=theme.SEQ, clim=(0, 1), size=7, line_color=theme.INK if member else None,
+            color="flag_rate", cmap=T.SEQ, clim=(0, 1), size=7, line_color=T.INK if member else None,
             line_width=1.2 if member else 0, colorbar=member, clabel="share of seeds flagged",
             tools=["hover"], hooks=HOOKS)
         thr = thresholds(S.dataset, S.size, S.key)
         y = float(tail(thr[np.isclose(thr.fpr, S.fpr)].threshold.median()))
         x0 = float(member_rows(S.frame(), member).gn10.min())
-        line = hv.HLine(y).opts(color=theme.ACCENT, line_width=1.5)
+        line = hv.HLine(y).opts(color=T.ACCENT, line_width=1.5)
         lab = hv.Text(x0, y, f" {fmt_fpr(S.fpr)} FPR threshold · ref-calibrated",
-                      halign="left", valign="bottom").opts(text_color=theme.ACCENT, text_font_size="11px")
+                      halign="left", valign="bottom").opts(text_color=T.ACCENT, text_font_size="11px")
         out = pts * line * lab
         if member and len(df):
             # call-outs stacked in the empty lower-left, leader lines to each record (no label collisions)
@@ -243,12 +245,12 @@ def atlas_panel(member: bool):
             span = float(member_rows(S.frame(), member).gn10.max()) - x0
             lx = x0 + 0.03 * span
             out = out * hv.Segments([(lx + 0.33 * span, yy, gx, gy) for yy, gx, gy in zip(ly, top.gn10, top.st)]).opts(
-                color=theme.ACCENT, line_width=0.8, alpha=0.7)
-            out = out * hv.Points(top, ["gn10", "st"]).opts(size=15, fill_alpha=0, line_color=theme.ACCENT, line_width=2)
+                color=T.ACCENT, line_width=0.8, alpha=0.7)
+            out = out * hv.Points(top, ["gn10", "st"]).opts(size=15, fill_alpha=0, line_color=T.ACCENT, line_width=2)
             out = out * hv.Labels({"x": [lx] * len(top), "y": ly,
                                    "text": [f"#{n}  record {r} · {int(k)}/3 seeds" for n, r, k in
                                             zip(top["rank"], top.record_id, top.k)]},
-                                  ["x", "y"], "text").opts(text_color=theme.ACCENT, text_font_size="10px", text_align="left")
+                                  ["x", "y"], "text").opts(text_color=T.ACCENT, text_font_size="10px", text_align="left")
         return out
     return density * hv.DynamicMap(flagged, streams=[hv.streams.Params(S, CTRL)]) * highlight("gn10", "st", member)
 
@@ -271,17 +273,17 @@ def roc_panels(**_):
         curves, aucs = roc(S.dataset, S.size, d)
         lo, med, hi = (np.clip(a, 1e-4, 1) for a in (curves.min(0), np.median(curves, 0), curves.max(0)))
         cur = d == S.key
-        ink = theme.INK if cur else theme.INK_2
-        band = hv.Area((FPR_AXIS, lo, hi), vdims=["lo", "hi"]).opts(color=theme.GHOST, alpha=0.8)
+        ink = T.INK if cur else T.INK_2
+        band = hv.Area((FPR_AXIS, lo, hi), vdims=["lo", "hi"]).opts(color=T.GHOST, alpha=0.8)
         line = hv.Curve((FPR_AXIS, med)).opts(color=ink, line_width=2.5 if cur else 1.5)
-        chance = hv.Curve((FPR_AXIS, FPR_AXIS)).opts(color=theme.MUTED, line_width=1, line_dash="dotted")
+        chance = hv.Curve((FPR_AXIS, FPR_AXIS)).opts(color=T.MUTED, line_width=1, line_dash="dotted")
         marks = []
         for f in (0.001, 0.01):
             t = float(np.median([np.interp(f, FPR_AXIS, c) for c in curves]))
             marks.append(hv.Points([(f, max(t, 1e-4))]).opts(color=ink, size=7))
             marks.append(hv.Text(f, max(t, 1e-4), f" {100 * t:.1f}% @ {fmt_fpr(f)}", halign="left",
                                  valign="top").opts(text_font_size="10px", text_color=ink))
-        vline = hv.VLine(S.fpr).opts(color=theme.ACCENT, line_width=1, alpha=0.6)
+        vline = hv.VLine(S.fpr).opts(color=T.ACCENT, line_width=1, alpha=0.6)
         title = f"{theme.DEFENSE_LABEL[d]}{'  ◀ current' if cur else ''}\nAUC {aucs.mean():.3f} ± {aucs.std(ddof=1):.3f}"
         plots.append(hv.Overlay([band, chance, line, vline, *marks]).opts(
             logx=True, logy=True, xlim=(1e-4, 1), ylim=(1e-4, 1), title=title, height=250, responsive=True,
@@ -321,23 +323,23 @@ def ridge_facet(defense):
         dens = 0.85 * dens / dens.max() if dens.max() > 0 else dens
         cur = defense == S.key
         areas.append(hv.Area((XS, i + dens, np.full_like(XS, i)), "score_t", ["ridge", "ridge0"]).opts(
-            color=theme.MUTED if cur else theme.GHOST, alpha=0.75))
-        areas.append(hv.Curve((XS, i + dens), "score_t", "ridge").opts(color=theme.INK if cur else theme.INK_2, line_width=1))
+            color=T.MUTED if cur else T.GHOST, alpha=0.75))
+        areas.append(hv.Curve((XS, i + dens), "score_t", "ridge").opts(color=T.INK if cur else T.INK_2, line_width=1))
         sel = sub[sub.record_id.isin(S.selected)]
         if len(sel):
-            areas.append(hv.Spikes(sel.st.to_numpy(), "score_t").opts(position=i, spike_length=0.3, color=theme.INK, line_width=1.5))
+            areas.append(hv.Spikes(sel.st.to_numpy(), "score_t").opts(position=i, spike_length=0.3, color=T.INK, line_width=1.5))
         v = sub.flag_rate.to_numpy()
         boot = v[rng.integers(0, len(v), (500, len(v)))].mean(1)  # percentile bootstrap over records
         lo, hi = np.percentile(boot, [2.5, 97.5])
         dots.append((v.mean(), i))
         bars.append((lo, i, hi, i))
         labels.append((4.0, i + 0.3, f"{g}  (n={len(v)})"))
-    ridge = hv.Overlay(areas + [hv.Labels(labels, ["score_t", "ridge"], "text").opts(text_align="right", text_font_size="10px", text_color=theme.INK_2)]).opts(
+    ridge = hv.Overlay(areas + [hv.Labels(labels, ["score_t", "ridge"], "text").opts(text_align="right", text_font_size="10px", text_color=T.INK_2)]).opts(
         title=theme.DEFENSE_LABEL[defense], xlabel=SCORE_LABEL, xticks=SCORE_TICKS, yaxis=None,
         height=60 + 46 * len(groups), xlim=(0, 4.05), responsive=True, hooks=HOOKS, fontsize={"title": 11})
     xmax = max(0.02, max(b[2] for b in bars) * 1.15) if bars else 0.05
-    dot = (hv.Segments(bars, ["rate_lo", "row", "rate_hi", "row_b"]).opts(color=theme.INK, line_width=1.5)
-           * hv.Points(dots, ["rate_lo", "row"]).opts(color=theme.ACCENT, size=7)).opts(
+    dot = (hv.Segments(bars, ["rate_lo", "row", "rate_hi", "row_b"]).opts(color=T.INK, line_width=1.5)
+           * hv.Points(dots, ["rate_lo", "row"]).opts(color=T.ACCENT, size=7)).opts(
         xlim=(0, xmax), ylim=(-0.3, len(groups) - 0.2), yaxis=None, xlabel=f"flag rate @ {fmt_fpr(S.fpr)} (95% CI)",
         height=60 + 46 * len(groups), width=170, hooks=HOOKS, title=" ", xformatter=lambda_pct(), xticks=3,
         toolbar=None)
@@ -368,7 +370,7 @@ def proxy_density():
     params = hv.streams.Params(S, CTRL)
     base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), True), ["lr10", "st"]), streams=[params])
     dens = rasterize(base, aggregator=ds.count(), width=360, height=280).opts(
-        cmap=list(theme.SEQ), cnorm="log", colorbar=True, clabel="records per pixel (log)", tools=["box_select", "tap"],
+        cmap=list(T.SEQ), cnorm="log", colorbar=True, clabel="records per pixel (log)", tools=["box_select", "tap"],
         active_tools=["box_select"], responsive=True, height=340, hooks=HOOKS, ylim=(-0.1, 4.1), yticks=SCORE_TICKS,
         xlabel="Proxy B: record loss / median held-out loss (log10)", ylabel=SCORE_LABEL,
         title="Per record (training records)")
@@ -385,13 +387,13 @@ def model_level(**_):
     xs = np.linspace(g.mlr10.min(), g.mlr10.max(), 50)
     cur = g[(g.dataset == S.dataset) & (g.train_size == S.size) & (g.defense == S.key)]
     pts = hv.Points(g, ["mlr10", "tpr"], ["dataset", "train_size", "defense"]).opts(
-        color=theme.INK_2, size=8, tools=["hover"], marker="circle")
-    fit = hv.Curve((xs, slope * xs + icpt)).opts(color=theme.INK, line_width=1.5)
-    ring = hv.Points(cur, ["mlr10", "tpr"]).opts(size=16, fill_alpha=0, line_color=theme.INK, line_width=2)
+        color=T.INK_2, size=8, tools=["hover"], marker="circle")
+    fit = hv.Curve((xs, slope * xs + icpt)).opts(color=T.INK, line_width=1.5)
+    ring = hv.Points(cur, ["mlr10", "tpr"]).opts(size=16, fill_alpha=0, line_color=T.INK, line_width=2)
     lab = hv.Text(g.mlr10.min(), g.tpr.max(), f"Spearman ρ = {rho:.2f}  (n = {len(g)} configurations)",
-                  halign="left", valign="top").opts(text_font_size="12px", text_color=theme.INK)
+                  halign="left", valign="top").opts(text_font_size="12px", text_color=T.INK)
     names = hv.Labels({"x": cur.mlr10, "y": cur.tpr, "t": ["  current"] * len(cur)}, ["x", "y"], "t").opts(
-        text_align="left", text_font_size="10px")
+        text_align="left", text_font_size="10px", text_color=T.INK_2)
     return (pts * fit * ring * lab * names).opts(
         xlabel="Model-level loss ratio, test / train (log10)", ylabel="RMIA TPR @ 1% FPR (mean of 3 seeds)",
         title="Per configuration (both datasets)", height=340, responsive=True, hooks=HOOKS)
@@ -424,12 +426,12 @@ def stability():
         if not len(df):
             return hv.Points([], ["st", "yj"])
         return hv.Points(df, ["st", "yj"], ["k", "record_id", "flag_rate", "score_rmia"]).opts(
-            color="flag_rate", cmap=theme.SEQ, clim=(0, 1), size=5, tools=["hover", "box_select", "tap"],
+            color="flag_rate", cmap=T.SEQ, clim=(0, 1), size=5, tools=["hover", "box_select", "tap"],
             active_tools=["box_select"])
     dm = hv.DynamicMap(draw, streams=[hv.streams.Params(S, CTRL)])
     attach(dm, select_box(True, "st", "yj", frame_fn=stability_frame))
     hl = hv.DynamicMap(lambda **_: hv.Points(stability_frame()[lambda d: d.record_id.isin(S.selected)], ["st", "yj"]).opts(
-        size=11, fill_alpha=0, line_color=theme.INK, line_width=2), streams=[hv.streams.Params(S, CTRL + ["selected"])])
+        size=11, fill_alpha=0, line_color=T.INK, line_width=2), streams=[hv.streams.Params(S, CTRL + ["selected"])])
     return (dm * hl).opts(yticks=[(1, "1 of 3 seeds"), (2, "2 of 3"), (3, "all 3 seeds")], ylim=(0.4, 3.6),
                           xlabel="RMIA score (tail-stretched), seed mean", xticks=SCORE_TICKS, xlim=(-0.1, 4.1), ylabel="", height=300, responsive=True,
                           hooks=HOOKS, title="Training records flagged at least once")
@@ -457,7 +459,7 @@ def neighbors(rid, k=5):
 def image(rid, title, w=150):
     d = dataset_obj("fmnist")
     img = (d.x[rid, 0].numpy() * FMNIST_STD + FMNIST_MEAN)[::-1]
-    return hv.Image(img, bounds=(0, 0, 28, 28)).opts(cmap="gray", xaxis=None, yaxis=None, frame_width=w,
+    return hv.Image(img, bounds=(0, 0, 28, 28)).opts(cmap=T.IMG_CMAP, xaxis=None, yaxis=None, frame_width=w,
                                                       frame_height=w, title=title, toolbar=None, fontsize={"title": 9})
 
 
@@ -477,11 +479,11 @@ def inspector(*_):
             f'{"" if len(S.selected) == 1 else f" · {len(S.selected):,} records selected (showing the first)"}</div>')
     xs = list(range(len(per_def)))
     base_y = per_def[0][1]
-    segs = hv.Segments([(0, base_y, i, y) for i, (_, y, _, _) in enumerate(per_def)]).opts(color=theme.GHOST, line_width=1.5)
+    segs = hv.Segments([(0, base_y, i, y) for i, (_, y, _, _) in enumerate(per_def)]).opts(color=T.GHOST, line_width=1.5)
     pts = hv.Points([(i, y, k) for i, (_, y, k, _) in enumerate(per_def)], vdims=["k"]).opts(
-        color="k", cmap=theme.SEQ, clim=(0, 3), size=10, line_color=theme.INK, line_width=1, tools=["hover"])
+        color="k", cmap=T.SEQ, clim=(0, 3), size=10, line_color=T.INK, line_width=1, tools=["hover"])
     risky = hv.Points([(i, y) for i, (_, y, k, _) in enumerate(per_def) if k > 0]).opts(
-        size=17, fill_alpha=0, line_color=theme.ACCENT, line_width=2)
+        size=17, fill_alpha=0, line_color=T.ACCENT, line_width=2)
     short = ["none", "AoF", "DP ε1", "DP ε4", "DP ε8", "MIAS"]
     slope = (segs * pts * risky).opts(xticks=list(enumerate(short)),
                                       ylim=(-0.1, 4.1), yticks=SCORE_TICKS, xlim=(-0.4, len(xs) - 0.6), ylabel=SCORE_LABEL,
@@ -533,12 +535,12 @@ def tradeoff(**_):
     df = tradeoff_frame()
     df["size_px"] = 8 + 22 * np.sqrt(df.cost / df.cost.max())   # marker AREA ∝ cost
     front = df[df.pareto].sort_values("tpr")
-    eb_y = hv.ErrorBars(df, "tpr", ["acc", "acc_ci"]).opts(color=theme.INK_2)
-    eb_x = hv.ErrorBars([(t, a, e) for t, a, e in zip(df.tpr, df.acc, df.tpr_ci)], horizontal=True).opts(color=theme.INK_2)
+    eb_y = hv.ErrorBars(df, "tpr", ["acc", "acc_ci"]).opts(color=T.INK_2)
+    eb_x = hv.ErrorBars([(t, a, e) for t, a, e in zip(df.tpr, df.acc, df.tpr_ci)], horizontal=True).opts(color=T.INK_2)
     pts = hv.Points(df, ["tpr", "acc"], ["label", "cost", "size_px"]).opts(
-        size="size_px", color=theme.MUTED, line_color=theme.INK, line_width=1, tools=["hover"])
-    cur = hv.Points(df[df.defense == S.key], ["tpr", "acc"]).opts(size=30, fill_alpha=0, line_color=theme.INK, line_width=2)
-    frontier = hv.Curve(front, "tpr", "acc").opts(color=theme.INK_2, line_width=1.2)
+        size="size_px", color=T.MUTED, line_color=T.INK, line_width=1, tools=["hover"])
+    cur = hv.Points(df[df.defense == S.key], ["tpr", "acc"]).opts(size=30, fill_alpha=0, line_color=T.INK, line_width=2)
+    frontier = hv.Curve(front, "tpr", "acc").opts(color=T.INK_2, line_width=1.2)
     xr = max(df.tpr.max() + df.tpr_ci.max(), S.fpr) - min(df.tpr.min() - df.tpr_ci.max(), S.fpr)
     yr = (df.acc.max() - df.acc.min()) or 0.01
     order = df.sort_values("acc", ascending=False).reset_index(drop=True)
@@ -547,10 +549,10 @@ def tradeoff(**_):
         if abs(ly[i - 1] - ly[i]) < 0.06 * yr and abs(order.tpr[i - 1] - order.tpr[i]) < 0.15 * xr:
             ly[i] = ly[i - 1] - 0.06 * yr
     labels = hv.Labels({"x": order.tpr + 0.045 * xr, "y": ly, "t": list(order.label)}, ["x", "y"], "t").opts(
-        text_align="left", text_font_size="11px", text_color=theme.INK)
-    chance = hv.VLine(S.fpr).opts(color=theme.ACCENT, line_width=1, alpha=0.7)
+        text_align="left", text_font_size="11px", text_color=T.INK)
+    chance = hv.VLine(S.fpr).opts(color=T.ACCENT, line_width=1, alpha=0.7)
     ctext = hv.Text(S.fpr, df.acc.min() - df.acc_ci.max(), f" chance = {fmt_fpr(S.fpr)}", halign="left",
-                    valign="bottom").opts(text_color=theme.ACCENT, text_font_size="10px")
+                    valign="bottom").opts(text_color=T.ACCENT, text_font_size="10px")
     return (eb_y * eb_x * frontier * pts * cur * labels * chance * ctext).opts(
         xlabel=f"Privacy risk: RMIA TPR @ {fmt_fpr(S.fpr)} FPR (mean, 95% CI over 3 seeds)",
         ylabel="Utility: test accuracy (mean, 95% CI)", height=420, responsive=True, hooks=HOOKS,
@@ -632,9 +634,9 @@ if (target) target.scrollIntoView({behavior: still ? 'auto' : 'smooth', block: '
 """
 INDEX_CSS = f"""
 .bk-btn {{ background: transparent !important; border: none; border-left: 2px solid transparent; border-radius: 0;
-          color: {theme.INK_2}; font-family: {theme.MONO}; font-size: 12px; text-align: left; padding: 5px 8px;
+          color: var(--ink2); font-family: {theme.MONO}; font-size: 12px; text-align: left; padding: 5px 8px;
           min-height: 28px; cursor: pointer; transition: color .15s ease-out, border-color .15s ease-out; }}
-.bk-btn:hover, .bk-btn:focus-visible {{ color: {theme.INK}; border-left-color: {theme.ACCENT}; outline: none; }}
+.bk-btn:hover, .bk-btn:focus-visible {{ color: var(--ink); border-left-color: var(--accent); outline: none; }}
 """
 
 
@@ -651,7 +653,7 @@ def sidebar():
     case = pn.pane.HTML(pn.bind(case_file, *[S.param[c] for c in CTRL + ["selected"]]), margin=0)
     return pn.Column(brand(), controls(), case, view_index(), sizing_mode="fixed", width=300, margin=0,
                      styles={"position": "sticky", "top": "0", "height": "100vh", "overflow-y": "auto",
-                             "background": theme.PANEL, "border-right": f"1px solid {theme.RULE}",
+                             "background": T.PANEL, "border-right": f"1px solid {T.RULE}",
                              "padding": "22px 20px 28px 20px", "box-sizing": "border-box"})
 
 
@@ -711,7 +713,7 @@ def build():
         pn.pane.HTML('<p class="la-note">Source: data/leakatlas.duckdb · regenerate with <code>make reproduce</code> · '
                      'design notes: docs/design_principles.md</p>'),
         styles={"padding": "22px 32px 40px 32px", "max-width": "1400px"}, margin=0)
-    return pn.Row(sidebar(), main, sizing_mode="stretch_width", margin=0, styles={"background": theme.SURFACE})
+    return pn.Row(sidebar(), main, sizing_mode="stretch_width", margin=0, styles=theme.css_vars(T))
 
 
 if pn.state.location is not None:  # shareable, reproducible views: every control (and the selection) lives in the URL
