@@ -165,15 +165,12 @@ def fmt_fpr(f):
     return f"{100 * f:g}%"
 
 
-EXPLAIN = {}  # view name -> (what it shows, how to read it, why it matters for privacy)
+EXPLAIN = {}  # view name -> short paragraphs: what you are looking at, then why it matters for privacy
 
 
 def explain(name):
-    what, how, why = EXPLAIN[name]
-    return pn.pane.HTML(
-        '<details class="la-explain"><summary>What this shows and why it matters for privacy</summary>'
-        f'<h4>What it shows</h4><p>{what}</p><h4>How to read it</h4><p>{how}</p>'
-        f'<h4>Why it matters for privacy</h4><p class="privacy">{why}</p></details>', margin=0)
+    return pn.pane.HTML('<details class="la-explain"><summary>About this chart</summary>'
+                        + "".join(f"<p>{p_}</p>" for p_ in EXPLAIN[name]) + "</details>", margin=0)
 
 
 def section(n, name, takeaway, note, *body):
@@ -228,18 +225,9 @@ def member_rows(df, member: bool):
 
 
 # --------------------------------------------------------------------------------- 1. Record Atlas (hero)
-EXPLAIN["Record Atlas"] = (
-    "Every training record (left) and every held-out record the model never saw (right). Height is how sure the "
-    "attack is that the record was used in training; position across is the record's gradient norm, a cheap signal "
-    "the model owner can compute without attacking. Coloured points crossed the attack's threshold in at least one "
-    "of the three training runs.",
-    "Higher means the attack is more confident the record is a member; points above the orange line are flagged. "
-    "Flags on the left are real leaks (the record really was in training). Flags on the right are false accusations. "
-    "Box-select or click a cluster to follow those records through every other view.",
-    "Each coloured point on the left is a person (Adult) or an image (Fashion-MNIST) whose presence in the training "
-    "data an outsider can detect with nothing but query access to the model. Exposure concentrates on atypical "
-    "records with large gradients: outliers and rare combinations of attributes, which in census data are often "
-    "people in small or unusual groups, the very people privacy protections are meant to cover.")
+EXPLAIN["Record Atlas"] = [
+    "Each dot is one record. The higher it sits, the more sure the attack is that the record was used to train the model. Coloured dots crossed the attack's threshold: on the left that is a real leak, on the right a false alarm.",
+    'Most leaks sit far right in the left panel, among unusual records the model memorised. In census data those are often people from small groups, the people privacy rules exist to protect.']
 def atlas_panel(member: bool):
     params = hv.streams.Params(S, CTRL)
     base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), member), ["gn10", "st"]),
@@ -295,15 +283,9 @@ def atlas_takeaway():
 
 
 # ------------------------------------------------------------------------------------------ 2. Log-log ROC
-EXPLAIN["Log-scale ROC"] = (
-    "How well the attack separates training members from non-members under each defense, across every possible "
-    "threshold: TPR (members correctly caught) against FPR (non-members wrongly accused), both on log scales.",
-    "The dotted diagonal is guessing. What matters is how far the curve rises above it on the left, where false "
-    "accusations are rare. The grey band shows how much the result varies between training runs, and labels give "
-    "the TPR at 0.1% and 1% FPR.",
-    "An attacker who is almost certainly right about a few specific people is more dangerous than one who is "
-    "slightly better than chance about everyone, so the low-FPR region, not the AUC, is the headline (Carlini et "
-    "al.). A defense whose curve hugs the diagonal leaves an outsider unable to tell who was in the training data.")
+EXPLAIN["Log-scale ROC"] = [
+    'How well the attack tells members from outsiders under each defense. The dotted line is guessing.',
+    'What matters is the far left, where the attack wrongly accuses almost no one. An attacker who is nearly certain about a few people is more dangerous than one who is slightly better than chance about everyone.']
 def roc_panels(**_):
     plots = []
     for d in DEFENSES:
@@ -339,14 +321,9 @@ def roc_takeaway():
 
 
 # --------------------------------------------------------------------------------- 3. Subgroup ridgelines
-EXPLAIN["Subgroup ridgelines"] = (
-    "For Adult's census records: how the attack scores spread within each sex, race or age group (the ridges), and "
-    "what share of each group's training records is flagged (the dots), under every defense.",
-    "Dots further right mean more of that group is exposed; wider bars mean fewer people in the group and more "
-    "uncertainty. Compare the undefended panel with the defended ones to see whether a defense narrows the gaps.",
-    "Privacy risk is not shared equally. Small or atypical groups are easier to memorize, so their members can leak "
-    "more, a disparate exposure that is a fairness problem and a privacy problem at once. A defense should be judged "
-    "on whether it closes these gaps, not only on whether it lowers the average.")
+EXPLAIN["Subgroup ridgelines"] = [
+    "How exposed each group's records are, by sex, race or age, under every defense. Dots further right mean more of that group leaks; wide bars mean a small group and more uncertainty.",
+    'Groups the model rarely sees tend to leak more. A good defense should close that gap, not only lower the average.']
 XS = np.linspace(0, 4, 200)
 
 
@@ -411,16 +388,9 @@ def ridge_takeaway():
 
 
 # ---------------------------------------------------------------------------------- 4. Proxy vs truth
-EXPLAIN["Proxy vs truth"] = (
-    "Whether a cheap number computed from the model alone predicts what the expensive attack finds. Left: each "
-    "training record's loss ratio (its loss relative to typical held-out records) against its attack score. Right: "
-    "each configuration's overall test/train loss ratio against the attack's success rate.",
-    "If a proxy works, points rise from left to right. Spearman rho measures that rank agreement: 1 is perfect, 0 "
-    "is none, and a negative value means the proxy points the wrong way.",
-    "Running a strong attack needs reference models, compute and expertise. A cheap proxy would let a compliance "
-    "reviewer triage risky models and records before release. At the model level the loss ratio does track leakage, "
-    "but per record its direction depends on the defense, so a proxy tuned on one model can point a reviewer at the "
-    "wrong people on another.")
+EXPLAIN["Proxy vs truth"] = [
+    'A real attack is slow and needs expertise. These charts test whether a cheap number taken straight from the model could warn you instead.',
+    'Across models, the loss ratio tracks leakage well. Record by record it is less reliable: under a defense it can point at the wrong people.']
 def proxy_density():
     params = hv.streams.Params(S, CTRL)
     base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), True), ["lr10", "st"]), streams=[params])
@@ -465,15 +435,9 @@ def proxy_takeaway():
 
 
 # ---------------------------------------------------------------------------------- 5. Stability strip
-EXPLAIN["Stability strip"] = (
-    "The training records flagged at least once, sorted by how many of the three independently trained models flag "
-    "them.",
-    "Further right means a higher attack score. A record in the top row is flagged by every model and is "
-    "reproducibly exposed; a record in the bottom row was flagged by only one model and may be bad luck.",
-    "A privacy audit should not be a lottery. When the same records are flagged in every run, the leak is a "
-    "property of the record and the training recipe, so it would recur in a production model. When flags appear "
-    "only once, they are mostly noise, which is what a working defense looks like. Reporting a single run would "
-    "both overstate and misidentify who is at risk.")
+EXPLAIN["Stability strip"] = [
+    'Each model was trained three times. Records in the top row were flagged every time, so their exposure is real and would show up again in a deployed model. Records flagged only once are probably chance.',
+    'That is why a privacy audit should never rest on a single run.']
 def jitter(df):
     # ponytail: seeded vertical jitter, not a packed beeswarm; swap in a packing pass if overlap hides structure
     return df.assign(yj=df.k + (np.random.default_rng(0).random(len(df)) - 0.5) * 0.7)
@@ -511,14 +475,9 @@ def stability_takeaway():
 
 
 # --------------------------------------------------------------------------------- 6. Record inspector
-EXPLAIN["Record inspector"] = (
-    "One selected record up close: the image and its nearest training neighbours (Fashion-MNIST) or its feature "
-    "values (Adult), with its attack score under each defense.",
-    "Orange rings mark the defenses under which the record is still flagged. If the record looks unlike its "
-    "neighbours, it is atypical, which is why the model memorized it.",
-    "This is the view a data-protection officer needs: who exactly is exposed, and whether a defense protects this "
-    "person rather than just the average. A defense can lower average leakage and still leave the most exposed "
-    "individuals flagged; averages hide individual harm.")
+EXPLAIN["Record inspector"] = [
+    'One record up close, with its attack score under every defense. A record that looks unlike its nearest neighbours is easy for a model to memorise.',
+    'Orange rings show the defenses that still leave it exposed. Averages can improve while one person stays at risk; this is where you check.']
 def neighbors(rid, k=5):
     d = dataset_obj("fmnist")
     split = make_split(len(d.y), CONFIGS["fmnist"], S.size)
@@ -584,14 +543,9 @@ def inspector_takeaway():
 
 
 # ---------------------------------------------------------------------------------- 7. Defense trade-off
-EXPLAIN["Defense trade-off"] = (
-    "Each defense as one point: privacy risk (the share of members the attack catches at the chosen FPR) across, "
-    "utility (test accuracy) up, and training cost as marker size.",
-    "Up and to the left is better: accurate and private. The thin line joins the Pareto front, the defenses no "
-    "other option beats on both axes at once. Error bars are 95% intervals over three training runs.",
-    "Privacy protection has a price. Differential privacy gives a mathematical guarantee but costs accuracy and the "
-    "most compute; anti-overfitting is nearly free but leaves residual leakage. Choosing a defense is a governance "
-    "decision about acceptable risk, and this chart makes the trade explicit instead of hiding it in an average.")
+EXPLAIN["Defense trade-off"] = [
+    'Each dot is a defense. Further left leaks less, higher is more accurate, and a bigger dot costs more to train. The line joins the options that nothing else beats on both counts.',
+    'Privacy is not free. This shows what each defense costs in accuracy and compute, so the choice is made on purpose.']
 T95 = stats.t.ppf(0.975, 2)  # 3 seeds -> 2 dof
 
 
