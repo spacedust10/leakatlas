@@ -110,7 +110,7 @@ body, .bk-root, .pn-wrapper {{ font-family:{FONT}; font-size:15px; font-variant-
 .la-primer summary:hover, .la-explain summary:hover {{ color:var(--ink); }}
 .la-primer summary:focus-visible, .la-explain summary:focus-visible {{ outline:2px solid var(--accent); outline-offset:3px;
     border-radius:2px; }}
-.la-primer p, .la-explain p {{ font-size:14px; line-height:1.65; color:var(--ink2); margin:10px 0 0 24px; max-width:68ch; }}
+.la-primer p, .la-explain p {{ font-size:14px; line-height:1.65; color:var(--ink2); margin:10px 0 0 24px; }}
 
 .la-card {{ font-size:13px; color:var(--ink); line-height:1.5; }}
 .la-card table {{ border-collapse:collapse; font-size:12.5px; }}
