@@ -226,8 +226,10 @@ def member_rows(df, member: bool):
 
 # --------------------------------------------------------------------------------- 1. Record Atlas (hero)
 EXPLAIN["Record Atlas"] = [
-    "Each dot is one record. The higher it sits, the more sure the attack is that the record was used to train the model. Coloured dots crossed the attack's threshold: on the left that is a real leak, on the right a false alarm.",
-    'Most leaks sit far right in the left panel, among unusual records the model memorised. In census data those are often people from small groups, the people privacy rules exist to protect.']
+    'Each dot is one record. The left panel holds the records the model was trained on; the right panel holds records it never saw, which work as a control group. The higher a dot sits, the more sure the attack is that the record was part of training.',
+    "The orange line is the attack's decision threshold, set so that only 1 in 100 records the model never saw would be wrongly flagged. Coloured dots crossed it in at least one of the three training runs, and yellow means every run flagged them. On the left that is a real leak; on the right it is a false alarm. If a defense works, the left panel starts to look like the right one.",
+    'Across the bottom is the gradient norm, a number the model owner can compute without running any attack. When most leaks sit far right in the left panel, it is the unusual records that are being memorised. In census data those are often people from small groups, the people privacy rules exist to protect.',
+    'Try it: switch the defense to DP-SGD and watch the coloured dots above the line thin out in the left panel. Click any dot to follow that record through every other chart.']
 def atlas_panel(member: bool):
     params = hv.streams.Params(S, CTRL)
     base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), member), ["gn10", "st"]),
@@ -436,8 +438,9 @@ def proxy_takeaway():
 
 # ---------------------------------------------------------------------------------- 5. Stability strip
 EXPLAIN["Stability strip"] = [
-    'Each model was trained three times. Records in the top row were flagged every time, so their exposure is real and would show up again in a deployed model. Records flagged only once are probably chance.',
-    'That is why a privacy audit should never rest on a single run.']
+    'Every configuration was trained three times with different random seeds, the way a team might retrain the same model next month. This chart keeps only the training records the attack flagged at least once and sorts them by how many of the three runs flagged them. Further right means a higher attack score.',
+    'The top row is the worrying one: records flagged every time. Their exposure does not depend on luck. It comes from the record itself and the way the model was trained, so it would show up again in a deployed model. The bottom row holds records flagged in only one run, which is much closer to chance.',
+    'On the undefended model most flagged records sit in the top row. Under the defenses most of them move to the bottom row, which is what a working defense looks like. A single run can both exaggerate and miss who is at risk, so a privacy audit should never rest on one.']
 def jitter(df):
     # ponytail: seeded vertical jitter, not a packed beeswarm; swap in a packing pass if overlap hides structure
     return df.assign(yj=df.k + (np.random.default_rng(0).random(len(df)) - 0.5) * 0.7)
@@ -476,8 +479,10 @@ def stability_takeaway():
 
 # --------------------------------------------------------------------------------- 6. Record inspector
 EXPLAIN["Record inspector"] = [
-    'One record up close, with its attack score under every defense. A record that looks unlike its nearest neighbours is easy for a model to memorise.',
-    'Orange rings show the defenses that still leave it exposed. Averages can improve while one person stays at risk; this is where you check.']
+    "One record up close. For Fashion-MNIST you see the image itself and its four nearest images in the training set; for Adult you see the person's census answers. The sidebar case file keeps the same record in view while you scroll.",
+    'A record that looks unlike its neighbours, or a person with an unusual combination of answers, is easy for a model to memorise, and memorised records are exactly what the attack detects.',
+    "The chart underneath shows this record's attack score under each defense, starting from the undefended model on the left. An orange ring means the record is still flagged under that defense; a dot that drops to the bottom means the defense hides it.",
+    'This is the view a data-protection officer needs. A defense can lower the average leak and still leave a specific person exposed, and checking individual records is the only way to see that.']
 def neighbors(rid, k=5):
     d = dataset_obj("fmnist")
     split = make_split(len(d.y), CONFIGS["fmnist"], S.size)
