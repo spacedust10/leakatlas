@@ -447,8 +447,8 @@ def model_level(**_):
     ring = hv.Points(cur, ["mlr10", "tpr"]).opts(size=16, fill_alpha=0, line_color=T.INK, line_width=2)
     lab = hv.Text(g.mlr10.min(), g.tpr.max(), f"Spearman ρ = {rho:.2f}  (n = {len(g)} configurations)",
                   halign="left", valign="top").opts(text_font_size="12px", text_color=T.INK)
-    names = hv.Labels({"x": cur.mlr10, "y": cur.tpr, "t": ["  current"] * len(cur)}, ["x", "y"], "t").opts(
-        text_align="left", text_font_size="10px", text_color=T.INK_2)
+    names = hv.Labels({"x": cur.mlr10, "y": cur.tpr, "t": ["current   "] * len(cur)}, ["x", "y"], "t").opts(
+        text_align="right", text_font_size="10px", text_color=T.INK_2)  # left of the point: never clipped
     return (pts * fit * ring * lab * names).opts(
         xlabel="Model-level loss ratio, test / train (log10)", ylabel="RMIA TPR @ 1% FPR (mean of 3 seeds)",
         title="Per configuration (both datasets)", height=340, responsive=True, hooks=HOOKS)
