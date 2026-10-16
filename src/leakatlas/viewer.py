@@ -325,8 +325,9 @@ def roc_takeaway():
 
 # --------------------------------------------------------------------------------- 3. Subgroup ridgelines
 EXPLAIN["Subgroup ridgelines"] = [
-    "How exposed each group's records are, by sex, race or age, under every defense. Dots further right mean more of that group leaks; wide bars mean a small group and more uncertainty.",
-    'Groups the model rarely sees tend to leak more. A good defense should close that gap, not only lower the average.']
+    'This chart uses the Adult census data and splits its training records by sex, race or age band; choose which in the sidebar. Each small panel is one defense, and groups smaller than 20 people are left out.',
+    "Each ridge shows how the attack scores are spread within one group. A ridge that stretches further right has more records the attack is confident about. The dot beside it is the share of that group's records that were flagged, and its bar shows the uncertainty: a wide bar means a small group.",
+    'Groups the model sees rarely tend to be memorised more, so their members can leak more. That is a fairness problem and a privacy problem at once. Compare the undefended panel with the others: a good defense should close the gap between groups, not only lower the average.']
 XS = np.linspace(0, 4, 200)
 
 
@@ -392,8 +393,10 @@ def ridge_takeaway():
 
 # ---------------------------------------------------------------------------------- 4. Proxy vs truth
 EXPLAIN["Proxy vs truth"] = [
-    'A real attack is slow and needs expertise. These charts test whether a cheap number taken straight from the model could warn you instead.',
-    'Across models, the loss ratio tracks leakage well. Record by record it is less reliable: under a defense it can point at the wrong people.']
+    'A real attack needs reference models, compute and expertise. These two charts test whether a cheap number, taken straight from the trained model, could warn a reviewer instead.',
+    'On the left, each point is a training record. Across is its loss ratio, how far its error differs from the typical record the model never saw; up is the attack score. If the proxy worked perfectly, the cloud would rise steadily from left to right. Box-select part of it to follow those records elsewhere.',
+    'On the right, each dot is a whole configuration: its overall test-to-train loss ratio against the share of members the attack caught, with a fitted line and the rank correlation written on the chart. Here the relationship is clear, so the loss ratio is a useful early warning that a model leaks.',
+    'Record by record it is less reliable. Under a defense the relationship can weaken or even reverse, so a cutoff tuned on one model can point a reviewer at the wrong people. A proxy can tell you a model is risky; it cannot reliably tell you who.']
 def proxy_density():
     params = hv.streams.Params(S, CTRL)
     base = hv.DynamicMap(lambda **_: hv.Points(member_rows(S.frame(), True), ["lr10", "st"]), streams=[params])
