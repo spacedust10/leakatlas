@@ -36,10 +36,11 @@ class Palette:
 # CVD dE 11.7 vs the cividis anchors. cividis from step 91 = first step at >= 3:1 on near-black.
 DARK = Palette("dark", "#0f1115", "#15181e", "#e9e6df", "#a7adb8", "#6f7682", "#262a33", "#3a3f4b",
                "#ff7a45", tuple(cividis(256)[91:]), ("#1b1e25", "#2c313b", "#4a505c", "#7d8491"), "gray")
-# Light: contrast on SURFACE INK 16.3, INK_2 7.9, MUTED 4.8, ACCENT 4.7. ACCENT worst CVD dE 11.5 vs cividis.
-# cividis cut at 85%: its last yellows are ~1.2:1 on a light surface.
-LIGHT = Palette("light", "#f4f3ef", "#fbfbf9", "#16161a", "#4a4a52", "#6b6b74", "#e2e1dc", "#cfcfd4",
-                "#c2410c", tuple(cividis(256)[:217]), ("#ececee", "#c9c9cf", "#9a9aa3", "#55555e"), "gray_r")
+# Light: warm monochrome (minimalist-ui): bone page, white cards, charcoal ink, #EAEAEA rules. Contrast on SURFACE:
+# INK 11.7, INK_2 6.3, MUTED 4.8, ACCENT 4.8. ACCENT worst CVD dE 11.5 vs cividis. cividis cut at 85%: its last
+# yellows are ~1.2:1 on a light surface.
+LIGHT = Palette("light", "#f7f6f3", "#ffffff", "#2f3437", "#5c5b57", "#6e6d69", "#eaeaea", "#d6d5d1",
+                "#c2410c", tuple(cividis(256)[:217]), ("#efeeeb", "#cfcecb", "#9d9c98", "#5c5b57"), "gray_r")
 PALETTES = {"dark": DARK, "light": LIGHT}
 
 
