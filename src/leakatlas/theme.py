@@ -106,7 +106,7 @@ body, .bk-root, .pn-wrapper {{ font-family:{FONT}; font-size:15px; font-variant-
 .la-primer summary::-webkit-details-marker, .la-explain summary::-webkit-details-marker {{ display:none; }}
 .la-primer summary::before, .la-explain summary::before {{ content:"+"; width:14px; text-align:center; font-weight:500;
     color:var(--muted); }}
-.la-primer[open] > summary::before, .la-explain[open] > summary::before {{ content:"\2212"; }}
+.la-primer[open] > summary::before, .la-explain[open] > summary::before {{ content:"−"; }}
 .la-primer summary:hover, .la-explain summary:hover {{ color:var(--ink); }}
 .la-primer summary:focus-visible, .la-explain summary:focus-visible {{ outline:2px solid var(--accent); outline-offset:3px;
     border-radius:2px; }}
